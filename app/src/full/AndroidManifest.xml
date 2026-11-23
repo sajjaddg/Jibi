@@ -1,14 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The launcher shortcuts, on the full edition only. Lite has one screen, the one its icon already
-    opens, so a long-press there would offer nothing a tap does not.
+    What only the full edition has: the launcher shortcuts and «دو ضربه پشت گوشی». Lite has one
+    screen, the one its icon already opens, so a long-press there would offer nothing a tap does
+    not — and it has no دفتر for two knocks to open.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        «دو ضربه پشت گوشی» — see DoubleTapService.kt. All four are only ever exercised once she
+        turns the switch on in تنظیمات ← دو ضربه پشت گوشی, and none is asked for at first run.
+        SYSTEM_ALERT_WINDOW is granted on Android's own page, and it is what lets a double tap
+        open the app from the background at all (Android 10+ refuses that launch otherwise).
+        The foreground service is how the accelerometer stays listened to while the app is
+        closed; BOOT_COMPLETED puts it back after a restart, if she had it on.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application>
         <activity android:name=".MainActivity">
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <!--
+            specialUse, because none of the named types is "listening for a gesture": the
+            subtype property is what a store reviewer reads instead. Not exported — only
+            refreshDoubleTap starts it.
+        -->
+        <service
+            android:name=".DoubleTapService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Listens to the accelerometer for a double tap on the back of the phone, which opens manual transaction entry." />
+        </service>
+
+        <receiver
+            android:name=".DoubleTapBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

@@ -1136,6 +1136,15 @@ class Store(context: Context) {
         get() = prefs.getBoolean("familyNotes", false)
         set(v) { prefs.edit().putBoolean("familyNotes", v).apply() }
 
+    /**
+     * Whether two knocks on the back of the phone open «تراکنش دستی» — see DoubleTapService.kt.
+     * Off [EXPORTED_PREFS]: it only works with this phone's own overlay permission and a service
+     * this phone runs, so on a restored phone it would read «روشن» over a gesture that does nothing.
+     */
+    var doubleTap: Boolean
+        get() = prefs.getBoolean("doubleTap", false)
+        set(v) { prefs.edit().putBoolean("doubleTap", v).apply() }
+
     /** Rates the user typed in by hand; these win over whatever the Worker says. */
     var overrides: Map<String, Double>
         get() = read("overrides", emptyMap())

@@ -114,6 +114,13 @@ Sample data, live rates.
   On Android, a phone can also get a notification for each transaction the others share. It is
   built on the phone from what it has already synced, with no push service involved, so it can
   arrive a few hours late.
+- **Two taps on the back of the phone (Android).** Switched on in Settings, a double tap on the
+  back of the phone opens the hand-entry transaction sheet from anywhere — cash at the till, written
+  down before the change is back in your pocket. It needs Android's "display over other apps"
+  permission, which is what lets it open the app from the background, and keeps a silent
+  notification in the shade while it listens. Trains of knocks, like walking, are not counted.
+  The iPhone app has no equivalent: a browser cannot listen to the phone's sensors while it is
+  closed.
 - **Public-wallet tracking, or manual entry.** Save a public address and the app refreshes BTC,
   ETH/ERC-20, SOL, TRX/TRC-20, and supported EVM-token balances on BSC, Arbitrum, Polygon,
   Optimism, and Avalanche. Anything else can be entered by hand.

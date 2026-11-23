@@ -127,7 +127,7 @@ import kotlinx.coroutines.launch
  * because a process death that threw her from پشتیبان‌گیری back to the index would read as the
  * app restarting itself — the same reason `settings` itself is saveable upstairs.
  */
-internal enum class SettingsRoom { INDEX, SMS, SECURITY, BACKUP, CACHE, HEALTH, UPGRADE, FEEDBACK }
+internal enum class SettingsRoom { INDEX, SMS, SECURITY, BACKUP, CACHE, HEALTH, UPGRADE, FEEDBACK, DOUBLE_TAP }
 
 /** The site, which the «درباره» band opens and the full edition's download falls back to. */
 private const val SITE = "https://muchtoman.com/"
@@ -281,6 +281,8 @@ internal fun SettingsScreen(
         )
 
         SettingsRoom.FEEDBACK -> FeedbackPage { back() }
+
+        SettingsRoom.DOUBLE_TAP -> DoubleTapPage { back() }
     }
 
     if (exclusionsSheet) {
@@ -369,14 +371,14 @@ private fun SettingsIndex(
             IndexRow(
                 title = "پیامک‌های بانک",
                 value = if (smsOn) "روشن" else "خاموش",
-                shape = bandShape(0, if (full) 4 else 1),
+                shape = bandShape(0, if (full) 5 else 1),
                 divided = full,
                 onClick = { onOpen(SettingsRoom.SMS) },
             ) { GlyphIcon(CategoryGlyph.ENVELOPE, MaterialTheme.colorScheme.onPrimaryContainer, size = 22.dp) }
             if (full) {
                 IndexRow(
                     title = "دسته‌بندی‌ها",
-                    shape = bandShape(1, 4),
+                    shape = bandShape(1, 5),
                     divided = true,
                     onClick = onCategories,
                 ) { GlyphIcon(CategoryGlyph.TAG, MaterialTheme.colorScheme.onPrimaryContainer, size = 22.dp) }
@@ -387,7 +389,7 @@ private fun SettingsIndex(
                 IndexRow(
                     title = "کنار گذاشته از گزارش‌ها",
                     value = if (excludedCount > 0) "${faNumber(excludedCount.toDouble())} دسته" else "هیچ‌کدوم",
-                    shape = bandShape(2, 4),
+                    shape = bandShape(2, 5),
                     divided = true,
                     onClick = onExclusions,
                 ) { GlyphIcon(CategoryGlyph.CHART, MaterialTheme.colorScheme.onPrimaryContainer, size = 22.dp) }
@@ -396,9 +398,19 @@ private fun SettingsIndex(
                     // No value until there is a household: an unpaired phone is not a setting
                     // left «خاموش», it is simply somebody's own book.
                     value = if (family.paired) "${faNumber(family.members.size.toDouble())} عضو" else null,
-                    shape = bandShape(3, 4),
+                    shape = bandShape(3, 5),
+                    divided = true,
                     onClick = onCompanion,
                 ) { GlyphIcon(CategoryGlyph.HOUSE, MaterialTheme.colorScheme.onPrimaryContainer, size = 22.dp) }
+                // With the ledger's doors because what it opens is the ledger: «تراکنش دستی», from
+                // anywhere on the phone. Read afresh each time the index composes, which is every
+                // return from the room — the room is where both halves of the answer change.
+                IndexRow(
+                    title = "دو ضربه پشت گوشی",
+                    value = if (Store(context).doubleTap && canOpenOverApps(context)) "روشن" else "خاموش",
+                    shape = bandShape(4, 5),
+                    onClick = { onOpen(SettingsRoom.DOUBLE_TAP) },
+                ) { GlyphIcon(CategoryGlyph.RECEIPT, MaterialTheme.colorScheme.onPrimaryContainer, size = 22.dp) }
             }
 
             SectionLabel("برنامه")
@@ -1490,6 +1502,110 @@ private fun SecurityPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Space.m, start = Space.xs, end = Space.xs),
             )
+        }
+    }
+}
+
+/**
+ * «دو ضربه پشت گوشی» — the switch, and the two or three things outside the app it rests on.
+ *
+ * The switch reads on only when both halves hold: her choice, and Android's overlay permission,
+ * which is what lets a double tap open the app from the background (see DoubleTapService.kt).
+ * Turning it on without the permission records the choice and leaves for Android's page; coming
+ * back re-reads both and starts or stops the service, so the switch never says «روشن» over a
+ * gesture that would be refused.
+ */
+@Composable
+private fun DoubleTapPage(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { Store(context) }
+    var wanted by remember { mutableStateOf(store.doubleTap) }
+    var allowed by remember { mutableStateOf(canOpenOverApps(context)) }
+    var unrestricted by remember { mutableStateOf(backgroundUnrestricted(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                allowed = canOpenOverApps(context)
+                unrestricted = backgroundUnrestricted(context)
+                refreshDoubleTap(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val on = wanted && allowed
+
+    SettingsPage("دو ضربه پشت گوشی", onBack) {
+        SettingCard(
+            mark = { GlyphIcon(CategoryGlyph.RECEIPT, MaterialTheme.colorScheme.onSurface, size = 22.dp) },
+            title = "دو ضربه پشت گوشی",
+            subtitle = "دو بار بزن پشت گوشی تا تراکنش دستی باز بشه، از هر جای گوشی.",
+            checked = on,
+            onChange = { turnOn ->
+                wanted = turnOn
+                store.doubleTap = turnOn
+                if (turnOn && !allowed) askOpenOverApps(context) else refreshDoubleTap(context)
+            },
+        )
+        Text(
+            buildAnnotatedString {
+                if (on) {
+                    append(
+                        "تا وقتی روشنه، یه اعلان بی‌صدا پایین فهرست اعلان‌ها می‌مونه؛ اندروید " +
+                            "بدون اون نمی‌ذاره حسگر گوشی وقتی برنامه بسته‌ست شنیده بشه. " +
+                            "تکون‌های پشت‌سرهم، مثل راه رفتن، حساب نمی‌شن.",
+                    )
+                    return@buildAnnotatedString
+                }
+                append(
+                    "روشنش که کنی، صفحهٔ «نمایش روی برنامه‌های دیگر» اندروید باز می‌شه؛ اون‌جا " +
+                        "چقدر تومن رو روشن کن. فقط برای اینه که دو ضربه بتونه برنامه رو از هر جا " +
+                        "باز کنه؛ چیزی روی برنامه‌های دیگه کشیده نمی‌شه.",
+                )
+                // The overlay permission is one of Android 13's «تنظیم محدودشده» for an app
+                // installed from a file — the same wall the Blu card names, and the same way round.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                        append("\nاگه کلیدش خاکستری بود: ")
+                    }
+                    append(
+                        "تنظیمات اندروید ← برنامه‌ها ← چقدر تومن، از منوی سه‌نقطهٔ بالا " +
+                            "تنظیمات محدودشده رو آزاد کن و دوباره امتحان کن.",
+                    )
+                }
+            },
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Space.m, start = Space.xs, end = Space.xs),
+        )
+        // Only once it is on: before that there is no gesture for a sleeping app to miss.
+        if (on && !unrestricted) {
+            Text(
+                "این گوشی چقدر تومن رو می‌خوابونه، برای همین ممکنه بعد از یه مدت دو ضربه " +
+                    "دیگه شنیده نشه. اجازه بده بیدار بمونه.",
+                fontSize = 13.sp,
+                lineHeight = 22.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Space.xl, start = Space.xs, end = Space.xs),
+            )
+            Spacer(Modifier.height(Space.m))
+            PillButton("اجازه بده بیدار بمونه", { askBackgroundExemption(context) })
+        }
+        // Xiaomi's second gate has no API to read, so it is named on every Xiaomi phone rather
+        // than only when it is shut — see [openXiaomiPermissions].
+        if (on && isXiaomi()) {
+            Text(
+                "روی گوشی شیائومی: اگه با دو ضربه چیزی باز نشد، توی مجوزهای چقدر تومن " +
+                    "«نمایش پنجره‌های بازشو هنگام اجرا در پس‌زمینه» رو هم روشن کن.",
+                fontSize = 13.sp,
+                lineHeight = 22.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Space.xl, start = Space.xs, end = Space.xs),
+            )
+            Spacer(Modifier.height(Space.m))
+            PillButton("مجوزهای شیائومی", { openXiaomiPermissions(context) })
         }
     }
 }
