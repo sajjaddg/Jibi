@@ -81,6 +81,14 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    // «دو ضربه پشت گوشی»: the app in front is the one moment Android always lets a foreground
+    // service start, so this is where a service that was refused at boot, or stopped by an OEM's
+    // cleaner, comes back. A no-op when it is already running or switched off.
+    override fun onStart() {
+        super.onStart()
+        refreshDoubleTap(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
