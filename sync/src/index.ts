@@ -464,6 +464,7 @@ export class Household extends DurableObject<Env> {
       if (path === '/push' && request.method === 'POST') return await this.push(request);
       if (path === '/remove' && request.method === 'POST') return await this.remove(request);
       if (path === '/leave' && request.method === 'POST') return await this.leave(request);
+      if (path === '/destroy' && request.method === 'POST') return await this.destroy(request);
       if (path === '/revoke' && request.method === 'POST') return await this.revoke(request);
       if (path === '/rotate' && request.method === 'POST') return await this.rotate(request);
       if (path === '/devices' && request.method === 'GET') return await this.devices(request);
@@ -939,8 +940,36 @@ export class Household extends DurableObject<Env> {
   private async closeIfEmpty(): Promise<void> {
     const devices = [...this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM device')][0];
     if (devices && devices.n > 0) return;
+    await this.wipe();
+  }
+
+  /** Everything this object holds, gone, and the object back to one that was never claimed. */
+  private async wipe(): Promise<void> {
     await this.ctx.storage.deleteAll();
     this.claimed = false;
+  }
+
+  /**
+   * Wipes the whole household from the server: every record, every device, every code. What is on
+   * the phones is not touched — this is the server forgetting, not the family's data going.
+   *
+   * Today's households are all families and the only role is the founder, so the rule is the
+   * family one: the founder, and only once they are the one member left (anyone else leaves, and
+   * the household closes itself when the last device does). A personal vault, when it exists,
+   * lets any of its own devices do this. Nothing is kept: the id can be claimed again, from
+   * nothing, and no old token opens it.
+   */
+  private async destroy(request: Request): Promise<Response> {
+    const secretHash = await this.credential(request);
+    const auth = this.authorise(secretHash);
+    const primary = this.primaryMember();
+    if (primary && auth.memberId !== primary) throw new SyncError('forbidden_primary', 403);
+    const members = new Set(
+      [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')].map(memberOf),
+    );
+    if (members.size > 1) throw new SyncError('members_remain', 409);
+    await this.wipe();
+    return jsonResponse({ destroyed: true });
   }
 
   /**
@@ -1030,7 +1059,7 @@ async function throttled(limiter: RateLimit, request: Request, key: (ip: string)
 }
 
 /** The calls that change who is in a household, rather than what it holds. */
-const MEMBERSHIP_ROUTES = new Set(['invite', 'pair', 'identity', 'remove', 'leave', 'revoke', 'rotate']);
+const MEMBERSHIP_ROUTES = new Set(['invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate']);
 
 /**
  * The page's policy, for the one asset response this Worker hands out: index.html at a path that
@@ -1181,6 +1210,7 @@ export default {
             : path === '/v1/identity' && request.method === 'POST' ? 'identity'
             : path === '/v1/remove' && request.method === 'POST' ? 'remove'
             : path === '/v1/leave' && request.method === 'POST' ? 'leave'
+            : path === '/v1/destroy' && request.method === 'POST' ? 'destroy'
             : path === '/v1/revoke' && request.method === 'POST' ? 'revoke'
             : path === '/v1/rotate' && request.method === 'POST' ? 'rotate'
             : path === '/v1/devices' && request.method === 'GET' ? 'devices'

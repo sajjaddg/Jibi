@@ -721,6 +721,12 @@ each with the reading it must produce and a `why` explaining which phone produce
 Both parsers read it, so the Kotlin and TypeScript sides cannot drift on the cases they share.
 An absent key is not asserted; an unknown key fails the run, so a typo cannot quietly weaken it.
 
+`POST /v1/destroy` makes the server forget a household: every record, device and code, then the
+object is as if never claimed, so the id can be claimed again from nothing and no old token opens
+it. Today only the founder may, and only once they are the last member; anyone else leaves. What is
+on the phones is untouched. Cloudflare's point-in-time recovery keeps a deleted object's storage
+for 30 days, which the privacy text has to say.
+
 ### Deploying
 
 ```bash
