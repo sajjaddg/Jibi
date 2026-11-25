@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "sh ../tools/deploy-guard.sh sync pwa && pnpm --dir ../pwa install --frozen-lockfile && pnpm --dir ../pwa run build && wrangler deploy --message \"$(git rev-parse --short HEAD)\"",
+    "loadtest": "node loadtest/run.mjs",
     "tail": "wrangler tail",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

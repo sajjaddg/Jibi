@@ -270,6 +270,21 @@ message of a pasted Shortcuts bundle (`readBundle` in [paste.ts](pwa/src/paste.t
 format) under its sender's bank. `pwa/test/paste.test.ts` reads Sms.kt's `Bank` enum and fails
 unless the two agree, so a new bank or sender lands in both in the same change.
 
+### Load-testing the sync Worker
+
+```bash
+cd sync && pnpm run dev           # one terminal
+cd sync && pnpm run loadtest      # another; --scale=0.1 for a quick run, --seed=N to vary
+```
+
+`sync/loadtest/` pushes a synthetic five-year vault (about 42,000 opaque records: SMS, decisions,
+goals, daily history — `vault.mjs`, seeded, random bytes standing in for ciphertext), pulls it back
+from zero and prints bytes, request counts, a «Fast 3G» model of how long a new phone would wait,
+and a cost estimate at 1k, 10k and 100k vaults. It refuses any address that is not loopback over
+http, with no override: a run against staging is a decision for the B5.4 report, not a default.
+Bytes, requests and row counts carry over to Cloudflare; wall times under `wrangler dev` do not,
+and the object's CPU time cannot be seen there at all.
+
 ## Releasing
 
 A signed APK is built and attached to a GitHub Release whenever a tag is pushed, by
