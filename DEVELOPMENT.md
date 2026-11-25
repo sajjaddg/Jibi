@@ -730,6 +730,20 @@ cd sync && pnpm run deploy        # builds ../pwa first; refuses uncommitted cha
 `sync.muchtoman.com`, custom domain only — `workers.dev` is DNS-sinkholed inside Iran, same as
 for the rates Worker.
 
+```bash
+cd sync && pnpm run deploy:staging   # same guard and PWA build, to muchtoman-sync-staging
+cd sync && pnpm run tail:staging
+```
+
+Staging is `env.staging` in `sync/wrangler.jsonc`: its own Worker name, its own Durable Object
+namespace (so its households are not production's), its own rate-limit counters, and the custom
+domain `staging-sync.muchtoman.com` — never `workers.dev`. It reads rates from the real rates
+Worker. `pnpm run check` dry-runs both environments, so a broken staging block fails CI, but
+nothing here has deployed it: the first `deploy:staging` creates the Worker and attaches the
+domain, and the zone must be able to host `staging-sync.muchtoman.com`. To point a client at it,
+Android takes `-Pmuchtoman.syncUrl=https://staging-sync.muchtoman.com`; `billing/` gets the same
+block when it exists.
+
 ## September 2026 review fixes
 
 Durable schema 11 adds the family transaction transfer flag. Keep the historical schema files

@@ -47,6 +47,42 @@
     { "name": "MEMBERSHIP_LIMIT", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
   ],
 
+  // The same Worker on its own name, domain, Durable Object namespace and rate-limit counters, for
+  // trying a change on something that is not a family's ledger. `wrangler deploy --env staging`
+  // (pnpm run deploy:staging) makes a second Worker, `muchtoman-sync-staging`, so its households
+  // are a different set of objects from production's even though the class and the code are the
+  // same. Nothing here is inherited on purpose: a key left out of this block would fall back to
+  // production's value or be missing, and the ones that matter are named.
+  //
+  // Still never workers.dev — Iran sinkholes it — and the PWA bundle served is the one built
+  // locally, as for production. Rates are read from the real rates Worker: they are public and
+  // read-only, and staging has no reason to hold a copy.
+  "env": {
+    "staging": {
+      "name": "muchtoman-sync-staging",
+      "vars": { "RATES_ORIGIN": "https://rates.muchtoman.com" },
+      "routes": [{ "pattern": "staging-sync.muchtoman.com", "custom_domain": true }],
+      "workers_dev": false,
+      "assets": {
+        "directory": "../pwa/dist",
+        "not_found_handling": "single-page-application",
+        "binding": "ASSETS"
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "HOUSEHOLD", "class_name": "Household" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Household"] }],
+      // Counters of their own: another binding reusing a namespace id shares its counts, and a
+      // load test against staging must not spend production's turn.
+      "ratelimits": [
+        { "name": "CLAIM_LIMIT", "namespace_id": "2001", "simple": { "limit": 5, "period": 60 } },
+        { "name": "API_LIMIT", "namespace_id": "2002", "simple": { "limit": 1200, "period": 60 } },
+        { "name": "MEMBERSHIP_LIMIT", "namespace_id": "2003", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+    }
+  },
+
   // The code's own console.error lines, and nothing else. Every financial field that passes
   // through here is AES-GCM ciphertext the Worker has no key for, but invocation logs would keep
   // every request's URL, headers and the caller's geo, so they stay off.
