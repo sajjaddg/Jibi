@@ -25,12 +25,11 @@ import androidx.core.content.ContextCompat
 
 // The Android half of «دو ضربه پشت گوشی» — see DoubleTap.kt for the pure half and what it decides.
 //
-// Two knocks open «تراکنش دستی» — the same sheet, in the same app, through the same extra as the
-// «تراکنش» launcher shortcut ([EXTRA_ADD_TXN]), so the lock, the categories, her accounts and the
-// save path are the ones the app already has. The Jibi prototype drew its own quick-entry form in
-// a window over the other app; that is deliberately not carried over. A second form would be a
-// second place a figure is typed and saved, and a window over another app is a window the app lock
-// never covers.
+// Two knocks open [QuickEntryActivity]: a translucent, isolated window showing only «تراکنش دستی»
+// (ManualTxnSheet) directly over whatever app or screen she is on, without opening MainActivity or
+// leaving her inside the app afterwards. Because it is still a real FragmentActivity of this app,
+// it shares the same ManualTxnSheet UI, app lock, categories, accounts, and [persistManualTxn] save
+// path with zero duplicated form code.
 //
 // What the overlay permission buys is the launch itself. Android 10+ refuses to start an activity
 // from the background, and «نمایش روی برنامه‌های دیگر» (SYSTEM_ALERT_WINDOW) is the exemption a
@@ -107,18 +106,19 @@ fun refreshDoubleTap(context: Context): Boolean {
 }
 
 /**
- * What a double tap does: «تراکنش دستی» over دفتر. CLEAR_TOP | SINGLE_TOP, the notes' own flags
- * ([destination] in Notify.kt), so an app already open gets it as onNewIntent on the one copy there
- * is, with the lock and whatever she had open handled where they already are.
+ * What a double tap does: open [QuickEntryActivity] directly over whatever screen is active,
+ * without bringing [MainActivity] to the front.
  */
 internal fun openQuickEntry(context: Context): Boolean {
-    val intent = Intent(context, MainActivity::class.java)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        .putExtra(EXTRA_ADD_TXN, true)
+    val intent = quickEntryIntent(context)
     return runCatching { context.startActivity(intent) }
         .onFailure { logFailure("double tap launch", it) }
         .isSuccess
 }
+
+internal fun quickEntryIntent(context: Context): Intent =
+    Intent(context, QuickEntryActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
 /**
  * Keeps the accelerometer listened to while the app is closed. A foreground service because nothing
