@@ -47,6 +47,11 @@
     { "name": "MEMBERSHIP_LIMIT", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
   ],
 
+  // One write-only Analytics Engine dataset: per request the endpoint, the status and the client's
+  // version, and nothing that says whose (src/metrics.ts). Reading it takes the account API token
+  // the rates Worker's usage page already uses.
+  "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "muchtoman_sync" }],
+
   // The code's own console.error lines, and nothing else. Every financial field that passes
   // through here is AES-GCM ciphertext the Worker has no key for, but invocation logs would keep
   // every request's URL, headers and the caller's geo, so they stay off.

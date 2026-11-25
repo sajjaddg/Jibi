@@ -21,6 +21,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { measure, routeOf } from './metrics';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -1049,7 +1050,7 @@ const ASSET_HEADERS = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
 };
 
-export default {
+const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -1173,18 +1174,7 @@ export default {
         );
         if (!token) return jsonResponse({ code: 'unauthorised' }, 401);
 
-        const route =
-          path === '/v1/sync' && request.method === 'GET' ? 'pull'
-            : path === '/v1/sync' && request.method === 'POST' ? 'push'
-            : path === '/v1/invite' && request.method === 'POST' ? 'invite'
-            : path === '/v1/pair' && request.method === 'POST' ? 'pair'
-            : path === '/v1/identity' && request.method === 'POST' ? 'identity'
-            : path === '/v1/remove' && request.method === 'POST' ? 'remove'
-            : path === '/v1/leave' && request.method === 'POST' ? 'leave'
-            : path === '/v1/revoke' && request.method === 'POST' ? 'revoke'
-            : path === '/v1/rotate' && request.method === 'POST' ? 'rotate'
-            : path === '/v1/devices' && request.method === 'GET' ? 'devices'
-            : null;
+        const route = routeOf(request.method, path);
         if (!route) return textResponse('not found\n', 404);
 
         // Every call, by address, generously: carriers here put many phones behind one address.
@@ -1220,6 +1210,15 @@ export default {
       console.error(JSON.stringify({ message: 'sync failed', error: errorMessage(error) }));
       return jsonResponse({ code: 'internal' }, 500);
     }
+  },
+};
+
+/** Every answer is counted, by endpoint, status and client version, and nothing else (./metrics.ts). */
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const response = await handler.fetch(request, env);
+    measure(env.METRICS, request, response.status);
+    return response;
   },
 };
 
