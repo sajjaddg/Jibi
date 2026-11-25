@@ -21,6 +21,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { runMigrations } from './migrations';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -309,71 +310,13 @@ export class Household extends DurableObject<Env> {
     if (this.claimed) ctx.blockConcurrencyWhile(async () => this.migrate());
   }
 
+  /**
+   * Numbered schema steps (./migrations.ts), then the two pieces of upkeep that are not schema and
+   * are safe to repeat: they run on every wake, and a test that seeds rows behind the object's back
+   * runs them again.
+   */
   private migrate(): void {
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS record (
-        id         TEXT PRIMARY KEY,
-        scope      TEXT NOT NULL,
-        seq        INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        device     TEXT NOT NULL,
-        kind       TEXT NOT NULL DEFAULT 'legacy',
-        owner_member TEXT NOT NULL DEFAULT '',
-        author_member TEXT NOT NULL DEFAULT '',
-        deleted    INTEGER NOT NULL DEFAULT 0,
-        nonce      TEXT NOT NULL,
-        body       TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS record_seq ON record(seq);
-      DROP INDEX IF EXISTS record_scope_seq;
-
-      CREATE TABLE IF NOT EXISTS device (
-        id         TEXT PRIMARY KEY,
-        member_id  TEXT NOT NULL DEFAULT '',
-        identity_locked INTEGER NOT NULL DEFAULT 1,
-        token_hash TEXT NOT NULL,
-        scopes     TEXT NOT NULL,
-        added_at   INTEGER NOT NULL,
-        last_seen  INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS pairing (
-        code_hash  TEXT PRIMARY KEY,
-        scopes     TEXT NOT NULL,
-        expires_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS _sql_schema_migrations (
-        id INTEGER PRIMARY KEY,
-        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
-
-    const recordColumns = new Set(
-      [...this.sql.exec<{ name: string }>('PRAGMA table_info(record)')].map((row) => row.name),
-    );
-    if (!recordColumns.has('kind')) {
-      this.sql.exec("ALTER TABLE record ADD COLUMN kind TEXT NOT NULL DEFAULT 'legacy'");
-    }
-    if (!recordColumns.has('owner_member')) {
-      this.sql.exec("ALTER TABLE record ADD COLUMN owner_member TEXT NOT NULL DEFAULT ''");
-    }
-    if (!recordColumns.has('author_member')) {
-      this.sql.exec("ALTER TABLE record ADD COLUMN author_member TEXT NOT NULL DEFAULT ''");
-    }
-    const deviceColumns = new Set(
-      [...this.sql.exec<{ name: string }>('PRAGMA table_info(device)')].map((row) => row.name),
-    );
-    if (!deviceColumns.has('member_id')) {
-      this.sql.exec("ALTER TABLE device ADD COLUMN member_id TEXT NOT NULL DEFAULT ''");
-    }
-    if (!deviceColumns.has('identity_locked')) {
-      // Existing tokens predate explicit person/device identity. They get exactly one upgrade.
-      this.sql.exec('ALTER TABLE device ADD COLUMN identity_locked INTEGER NOT NULL DEFAULT 0');
-    }
-    this.sql.exec('INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (2)');
-    this.sql.exec('INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (3)');
+    runMigrations(this.ctx.storage);
     // last_seen is no longer kept: nothing read it, and it said when each phone was last online.
     // The column stays NOT NULL, so it holds the day the device joined, and what it held goes.
     this.sql.exec('UPDATE device SET last_seen = added_at WHERE last_seen != added_at');
