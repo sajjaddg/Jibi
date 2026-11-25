@@ -30,10 +30,13 @@ const FIXTURES = [
   },
 ];
 
+/** Every step there is: a household that has taken them all. */
+const ALL_STEPS = MIGRATIONS.map((step) => step.id);
+
 const RECORD_COLUMNS = [
   'author_member', 'body', 'deleted', 'device', 'id', 'kind', 'nonce', 'owner_member', 'scope', 'seq', 'updated_at',
 ];
-const DEVICE_COLUMNS = ['added_at', 'id', 'identity_locked', 'last_seen', 'member_id', 'scopes', 'token_hash'];
+const DEVICE_COLUMNS = ['acked_seq', 'added_at', 'id', 'identity_locked', 'last_seen', 'member_id', 'scopes', 'token_hash'];
 
 let next = 0;
 /** A household id nobody has used: the object comes into being by being addressed. */
@@ -101,13 +104,16 @@ describe.each(FIXTURES)('a household left at $name', (fixture) => {
     await inside(hid, (sql) => {
       expect(columns(sql, 'record')).toEqual(RECORD_COLUMNS);
       expect(columns(sql, 'device')).toEqual(DEVICE_COLUMNS);
-      expect(taken(sql).map((row) => row.id)).toEqual([1, 2, 3]);
+      expect(taken(sql).map((row) => row.id)).toEqual(ALL_STEPS);
       expect([...sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM record')][0].n).toBe(3);
       // The one free identity rebinding is for a token that predates identity, and for nobody else.
       expect([...sql.exec<{ identity_locked: number }>('SELECT identity_locked FROM device')][0].identity_locked).toBe(fixture.locked);
       // The old index is gone and the one the pull uses is still there.
       const indexes = [...sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'index'")].map((r) => r.name);
       expect(indexes).toContain('record_seq');
+      expect(indexes).toContain('record_tombstone');
+      // Nobody has said what they hold yet; the number only ever moves forward from here.
+      expect([...sql.exec<{ acked_seq: number }>('SELECT acked_seq FROM device')][0].acked_seq).toBe(0);
       expect(indexes).not.toContain('record_scope_seq');
     });
   });
@@ -148,7 +154,7 @@ describe.each(FIXTURES)('a household left at $name', (fixture) => {
     expect(await inside(hid, taken)).toEqual(before);
     // Production's own rows survive: steps 2 and 3 keep the time they were recorded.
     if (fixture.name === 'schema 3') {
-      expect(before.filter((row) => row.id !== 1).map((row) => row.applied_at)).toEqual(['2026-08-06 00:00:00', '2026-08-06 00:00:00']);
+      expect(before.filter((row) => row.id === 2 || row.id === 3).map((row) => row.applied_at)).toEqual(['2026-08-06 00:00:00', '2026-08-06 00:00:00']);
     }
   });
 });
@@ -165,7 +171,7 @@ describe('the framework', () => {
     await inside(hid, (sql) => {
       expect(columns(sql, 'record')).toEqual(RECORD_COLUMNS);
       expect(columns(sql, 'device')).toEqual(DEVICE_COLUMNS);
-      expect(taken(sql).map((row) => row.id)).toEqual([1, 2, 3]);
+      expect(taken(sql).map((row) => row.id)).toEqual(ALL_STEPS);
       // A fresh household's default is the locked one, as it always was.
       const column = [...sql.exec<{ name: string; dflt_value: string }>('PRAGMA table_info(device)')].find((c) => c.name === 'identity_locked')!;
       expect(column.dflt_value).toBe('1');
@@ -180,7 +186,7 @@ describe('the framework', () => {
     });
     await abortAllDurableObjects();
     expect((await pullAll(hid, '3'.repeat(64))).status).toBe(200);
-    expect((await inside(hid, taken)).map((row) => row.id)).toEqual([1, 2, 3, 99]);
+    expect((await inside(hid, taken)).map((row) => row.id)).toEqual([...ALL_STEPS, 99]);
   });
 
   it('takes a step and the row recording it in one transaction: a step that fails leaves neither', async () => {
@@ -188,12 +194,12 @@ describe('the framework', () => {
     await seed(hid, v3);
     await runInDurableObject(env.HOUSEHOLD.getByName(hid), async (_instance, state) => {
       const additive: Migration = {
-        id: 4,
+        id: MIGRATIONS.length + 1,
         name: 'a test column',
         up: (sql) => sql.exec("ALTER TABLE record ADD COLUMN probe TEXT NOT NULL DEFAULT ''"),
       };
       const broken: Migration = {
-        id: 5,
+        id: MIGRATIONS.length + 2,
         name: 'adds a column, then fails',
         up(sql) {
           sql.exec('ALTER TABLE device ADD COLUMN half_done INTEGER');
@@ -203,7 +209,7 @@ describe('the framework', () => {
       expect(() => runMigrations(state.storage, [...MIGRATIONS, additive, broken])).toThrow('boom');
       const sql = state.storage.sql;
       // The step before it stood; the one that failed left nothing behind, so the next wake retries it whole.
-      expect(taken(sql).map((row) => row.id)).toEqual([1, 2, 3, 4]);
+      expect(taken(sql).map((row) => row.id)).toEqual([...ALL_STEPS, MIGRATIONS.length + 1]);
       expect(columns(sql, 'record')).toContain('probe');
       expect(columns(sql, 'device')).not.toContain('half_done');
       // And adding a column kept every row.
