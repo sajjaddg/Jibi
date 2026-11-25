@@ -245,6 +245,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
      * foreground makes, without its network half — the worker runs the family sync itself.
      */
     fun readWhatLanded() {
+        val banks = store.bankAccounts
+        if (banks != _state.value.bankAccounts) _state.update { it.copy(bankAccounts = banks) }
         scanSms()
         viewModelScope.launch {
             // runLedger declines while a pipeline is in flight, and that one may be past its read.
@@ -259,6 +261,8 @@ class AppVm(app: Application) : AndroidViewModel(app) {
      * without her having to find the button.
      */
     fun refreshIfStale() {
+        val banks = store.bankAccounts
+        if (banks != _state.value.bankAccounts) _state.update { it.copy(bankAccounts = banks) }
         if (System.currentTimeMillis() - _state.value.rates.updatedAt > 10 * 60_000L) refresh()
         refreshStocksIfHeld()
         refreshWallets()
@@ -1028,54 +1032,17 @@ class AppVm(app: Application) : AndroidViewModel(app) {
             val durable = DurableDb.get(app)
             val derived = DerivedDb.get(app)
             runCatching {
-                val now = System.currentTimeMillis()
-                val id = uuid7(now)
-                val session = loadSession(durable)
-                durable.withTransaction {
-                    durable.manual().put(
-                        ManualTxn(
-                            id = id,
-                            at = at,
-                            day = tehranDay(at),
-                            amountRial = signedRial,
-                            accountId = accountId,
-                            categoryId = categoryId,
-                            merchant = merchant.trim().take(60),
-                            createdAt = now,
-                            updatedAt = now,
-                        )
-                    )
-                    if (categoryId != null) {
-                        durable.decisions().put(
-                            TxnDecision(
-                                id = uuid7(now + 1),
-                                ref = manualRef(id),
-                                kind = DecisionKind.CATEGORY,
-                                value = categoryId,
-                                createdAt = now,
-                                updatedAt = now,
-                                memberId = session?.member.orEmpty(),
-                                familyRef = session?.let { familyTxnId(it.member, manualRef(id)) }.orEmpty(),
-                            )
-                        )
-                    }
-                    val cleanNote = note.trim().take(MAX_NOTE_CHARS)
-                    if (cleanNote.isNotEmpty()) {
-                        durable.decisions().put(
-                            TxnDecision(
-                                id = uuid7(now + 2),
-                                ref = manualRef(id),
-                                kind = DecisionKind.NOTE,
-                                value = cleanNote,
-                                createdAt = now,
-                                updatedAt = now,
-                                memberId = session?.member.orEmpty(),
-                                familyRef = session?.let { familyTxnId(it.member, manualRef(id)) }.orEmpty(),
-                            )
-                        )
-                    }
-                }
-                derive(durable, derived, extraLookup(store.extraBankNumbers))
+                persistManualTxn(
+                    durable = durable,
+                    derived = derived,
+                    extraBanks = extraLookup(store.extraBankNumbers),
+                    signedRial = signedRial,
+                    categoryId = categoryId,
+                    merchant = merchant,
+                    note = note,
+                    at = at,
+                    accountId = accountId,
+                )
                 publishLedger(durable, derived)
                 if (accountId != null) settleTypedBanks()
                 requestFamilySync(silent = true)
@@ -1097,14 +1064,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         restartScan {
             runCatching {
-                val durable = DurableDb.get(app)
-                val accounts = store.bankAccounts
-                val typed = accounts.filter { it.manual }
-                    .mapNotNull { a -> durable.anchors().newest(a.key)?.let { a.key to it } }.toMap()
-                if (typed.isEmpty()) return@runCatching
-                val next = typedOnto(accounts, typed, ledgerEntries(DerivedDb.get(app), durable).entries.map { it.txn })
-                if (next == accounts) return@runCatching
-                store.bankAccounts = next
+                val next = settleTypedAccounts(store, DurableDb.get(app), DerivedDb.get(app)) ?: return@runCatching
                 _state.update { it.copy(bankAccounts = next) }
                 recordSnapshot()
             }.onFailure { logFailure("settleTypedBanks failed", it) }

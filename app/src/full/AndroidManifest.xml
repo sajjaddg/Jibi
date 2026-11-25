@@ -27,6 +27,21 @@
         </activity>
 
         <!--
+            Standalone quick-entry sheet for «دو ضربه پشت گوشی». Own empty taskAffinity and
+            excludeFromRecents so two knocks open only «تراکنش دستی» over the current screen
+            instead of pulling MainActivity to the front.
+        -->
+        <activity
+            android:name=".QuickEntryActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.MuchToman.QuickEntry"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale|layoutDirection"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!--
             specialUse, because none of the named types is "listening for a gesture": the
             subtype property is what a store reviewer reads instead. Not exported — only
             refreshDoubleTap starts it.

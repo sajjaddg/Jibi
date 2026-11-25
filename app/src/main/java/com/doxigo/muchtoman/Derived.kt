@@ -1016,3 +1016,90 @@ suspend fun allBalances(derived: DerivedDb, durable: DurableDb): List<DerivedBal
             deriveBalance(accountId, derived.txn().forAccount(accountId), anchors[accountId])
         }
 }
+
+/**
+ * Store a hand-entered transaction together with its category and note decisions, then re-derive.
+ *
+ * Shared between [AppVm.addManualTxn] and [QuickEntryActivity] so both paths write the exact same
+ * rows and never drift apart.
+ */
+suspend fun persistManualTxn(
+    durable: DurableDb,
+    derived: DerivedDb,
+    extraBanks: Map<String, Bank>,
+    signedRial: Long,
+    categoryId: String?,
+    merchant: String,
+    note: String,
+    at: Long,
+    accountId: String? = null,
+    now: Long = System.currentTimeMillis(),
+) {
+    if (signedRial == 0L) return
+    val id = uuid7(now)
+    val session = loadSession(durable)
+    durable.withTransaction {
+        durable.manual().put(
+            ManualTxn(
+                id = id,
+                at = at,
+                day = tehranDay(at),
+                amountRial = signedRial,
+                accountId = accountId,
+                categoryId = categoryId,
+                merchant = merchant.trim().take(60),
+                createdAt = now,
+                updatedAt = now,
+            ),
+        )
+        if (categoryId != null) {
+            durable.decisions().put(
+                TxnDecision(
+                    id = uuid7(now + 1),
+                    ref = manualRef(id),
+                    kind = DecisionKind.CATEGORY,
+                    value = categoryId,
+                    createdAt = now,
+                    updatedAt = now,
+                    memberId = session?.member.orEmpty(),
+                    familyRef = session?.let { familyTxnId(it.member, manualRef(id)) }.orEmpty(),
+                ),
+            )
+        }
+        val cleanNote = note.trim().take(MAX_NOTE_CHARS)
+        if (cleanNote.isNotEmpty()) {
+            durable.decisions().put(
+                TxnDecision(
+                    id = uuid7(now + 2),
+                    ref = manualRef(id),
+                    kind = DecisionKind.NOTE,
+                    value = cleanNote,
+                    createdAt = now,
+                    updatedAt = now,
+                    memberId = session?.member.orEmpty(),
+                    familyRef = session?.let { familyTxnId(it.member, manualRef(id)) }.orEmpty(),
+                ),
+            )
+        }
+    }
+    derive(durable, derived, extraBanks)
+}
+
+/**
+ * Recompute hand-kept bank balances from their newest anchor plus manual rows after it — see
+ * [typedOnto]. Returns the updated list when anything moved, or null when unchanged.
+ */
+suspend fun settleTypedAccounts(
+    store: Store,
+    durable: DurableDb,
+    derived: DerivedDb,
+): List<BankAccount>? {
+    val accounts = store.bankAccounts
+    val typed = accounts.filter { it.manual }
+        .mapNotNull { a -> durable.anchors().newest(a.key)?.let { a.key to it } }.toMap()
+    if (typed.isEmpty()) return null
+    val next = typedOnto(accounts, typed, ledgerEntries(derived, durable).entries.map { it.txn })
+    if (next == accounts) return null
+    store.bankAccounts = next
+    return next
+}
