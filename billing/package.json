@@ -1,0 +1,21 @@
+{
+  "name": "muchtoman-billing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "sh ../tools/deploy-guard.sh billing && wrangler d1 migrations apply muchtoman-billing --remote && wrangler deploy --message \"$(git rev-parse --short HEAD)\"",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm run typecheck && pnpm run test && wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12",
+    "wrangler": "^4.156.0"
+  },
+  "packageManager": "pnpm@10.30.2"
+}

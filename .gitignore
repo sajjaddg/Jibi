@@ -25,3 +25,7 @@ keystore.properties
 
 # impeccable transient review artifacts
 .impeccable/
+billing/node_modules/
+billing/.wrangler/
+# Local secrets for `wrangler dev`, never committed.
+.dev.vars*
