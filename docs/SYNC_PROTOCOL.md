@@ -173,7 +173,9 @@ replacing the placeholder in its golden vector.
 | `POST /v1/claim?hid=` | `{scopes, memberId?, deviceId?, type?, recovery?}` | `{secret, memberId, deviceId}` — once per household |
 | `POST /v1/recover` | `{hid, recovery, deviceId?, revoke?}` | `{secret, scopes, memberId, deviceId}` — no token |
 | `POST /v1/recovery/rotate` | `{recovery}` | `{rotated: true}`; the old secret stops at once |
-| `POST /v1/invite` | `{scopes?}` | `{code, expiresIn}` — a one-time code, ten minutes; at most 16 outstanding |
+| `POST /v1/invite` | `{scopes?, expiresIn?}` | `{code, expiresIn, places}` — a one-time code for ten minutes (default) or a day (`86400000`); at most 16 outstanding; `places` is how many more may join |
+| `GET /v1/invites` | — | `{invites: [{id, expiresAt}]}`; admins. `id` cannot redeem |
+| `POST /v1/invites/cancel` | `{id}` | `{cancelled: true}`; admins. The code then answers `invalid_code` |
 | `POST /v1/pair` | `{code, memberId?, deviceId?}` | `{secret, scopes, memberId, deviceId}` |
 | `POST /v1/identity` | `{memberId, deviceId}` | the same — one rebinding for a token older than identity |
 | `GET /v1/hello` | — | without a token `{protocol, kinds}`; with one, also `{type, plan, quota, used, minClient}` |
@@ -340,6 +342,7 @@ and every delete, is accepted, and no device or member is removed.
 | `invalid_since` | 400 | |
 | `invalid_limit` | 400 | |
 | `invalid_secret` | 400 | a rotation secret that is not 64 hex |
+| `invalid_expiry` | 400 | `expiresIn` that is neither of the two |
 | `invalid_recovery` | 400 | a recovery secret that is not 64 hex |
 | `invalid_member_tombstone` | 400 | `remove`/`leave` record does not bury that member |
 | `invalid_hid` | 400 | |
@@ -356,6 +359,7 @@ and every delete, is accepted, and no device or member is removed.
 | `unknown_member` | 404 | |
 | `not_recoverable` | 404 | § 4, recovery |
 | `unknown_device` | 404 | `revoke` names no device of this vault |
+| `unknown_invite` | 404 | no open code of that id |
 | `already_claimed` | 409 | |
 | `identity_exists` | 409 | `pair` with an id somebody has had |
 | `identity_locked` | 409 | |
