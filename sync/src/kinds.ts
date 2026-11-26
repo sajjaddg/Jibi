@@ -14,6 +14,8 @@ export const SHARED_KINDS = [
   'legacy', 'member', 'transaction', 'category', 'asset', 'note', 'goal', 'exclusion',
   // The household's common pot (#40): the pot, and each thing paid into or out of it.
   'fund', 'fund_entry',
+  // Who paid for whom (#41): one transaction divided between members, and money handed back.
+  'share_split', 'settlement',
 ] as const;
 
 /**
@@ -53,6 +55,8 @@ export const RESERVED_ID_PREFIXES: ReadonlyArray<readonly [prefix: string, kind:
   ['exclusion:', 'exclusion'],
   ['fund:', 'fund'],
   ['fund_entry:', 'fund_entry'],
+  ['share_split:', 'share_split'],
+  ['settlement:', 'settlement'],
 ];
 
 /** The kind an id's prefix reserves it to, or null for an id nobody has claimed a namespace on. */

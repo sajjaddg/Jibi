@@ -6,7 +6,7 @@ import { KINDS, SHARED_KINDS } from '../src/kinds';
 
 const json = { 'content-type': 'application/json' };
 const SCOPE = 'family:h';
-const HOUSEHOLD = ['fund', 'fund_entry'];
+const HOUSEHOLD = ['fund', 'fund_entry', 'share_split', 'settlement'];
 
 let next = 0;
 async function family() {
