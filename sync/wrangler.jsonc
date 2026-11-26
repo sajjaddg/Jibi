@@ -47,6 +47,10 @@
     { "name": "MEMBERSHIP_LIMIT", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
   ],
 
+  // One write-only Analytics Engine dataset: per request the endpoint, the status and the client's
+  // version, and nothing that says whose (src/metrics.ts). Reading it takes the account API token
+  // the rates Worker's usage page already uses.
+  "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "muchtoman_sync" }],
   // The same Worker on its own name, domain, Durable Object namespace and rate-limit counters, for
   // trying a change on something that is not a family's ledger. `wrangler deploy --env staging`
   // (pnpm run deploy:staging) makes a second Worker, `muchtoman-sync-staging`, so its households
@@ -72,6 +76,8 @@
         "bindings": [{ "name": "HOUSEHOLD", "class_name": "Household" }]
       },
       "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Household"] }],
+      // Its own dataset, so a load test does not show up in production's numbers.
+      "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "muchtoman_sync_staging" }],
       // Counters of their own: another binding reusing a namespace id shares its counts, and a
       // load test against staging must not spend production's turn.
       "ratelimits": [

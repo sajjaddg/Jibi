@@ -244,6 +244,26 @@ monotonic in سوت, crypto's Tehran quote against its USD cross — and a faili
 and named in `sources.plausibility`, never zeroed. The bands and their reasoning live in
 `worker/src/checks.ts`, which is also where the Worker's tests point.
 
+### What the sync Worker counts
+
+One Analytics Engine row per `/v1/*` answer in `muchtoman_sync` (the `METRICS` binding): blob1 the
+endpoint (`pull`, `push`, `claim` …, `unknown` for any other path), blob2 the status, blob3 the
+client's `X-MuchToman-Client: <version> <platform>` header or `unknown` (only a short run of
+version characters is kept). No household, device, member, token, address or scope — `src/metrics.ts`
+and its test say so. The Worker can only write it; reading is the same *Account Analytics: Read*
+token as above:
+
+```bash
+curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/analytics_engine/sql" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data "SELECT blob1 AS endpoint, blob2 AS status, blob3 AS client, SUM(_sample_interval) AS n
+          FROM muchtoman_sync WHERE timestamp > NOW() - INTERVAL '1' DAY
+          GROUP BY endpoint, status, client ORDER BY n DESC FORMAT JSONEachRow"
+```
+
+A 409 on `push` is `household_full` or, later, `quota_exceeded`; telling them apart needs the error
+code added to the row, which is a PRODUCT.md decision.
+
 ## Adding an asset
 
 **Crypto: nothing to do** — anything in CoinGecko's top 250 is already in the picker.
