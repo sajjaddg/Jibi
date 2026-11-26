@@ -27,6 +27,7 @@ import { errorCodeOf, measure, routeOf } from './metrics';
 import {
   effectivePlan, PLAN_LIMITS_ENFORCED, QUOTAS, type HouseholdType, type Plan, type Quota, type StoredPlan,
 } from './plans';
+import { effectiveRoles, isRole, ROLES_RESTRICT_MEMBERS, type Role } from './roles';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -364,6 +365,32 @@ export class Household extends DurableObject<Env> {
     return String(this.env.COMPACTION) === 'on';
   }
 
+  /** `ROLES_RESTRICT_MEMBERS` (roles.ts), as a method so that a test can run the object with it on. */
+  private restrictsMembers(): boolean {
+    return ROLES_RESTRICT_MEMBERS;
+  }
+
+  private roles(): Map<string, Role> {
+    const rows = [...this.sql.exec<{ member_id: string; token_hash: string; role: string }>(
+      'SELECT member_id, token_hash, role FROM device ORDER BY added_at, id',
+    )].map((row) => ({ memberId: memberOf(row), role: row.role }));
+    return effectiveRoles(rows, this.primaryMember());
+  }
+
+  /**
+   * Whether the caller may change who is here: invite, or put somebody else out. An admin may. A
+   * read-only member may not. A plain member may until `ROLES_RESTRICT_MEMBERS`, and may never
+   * put out an admin.
+   */
+  private mayManage(auth: AuthorisedDevice, targetMember?: string): void {
+    const roles = this.roles();
+    const mine = roles.get(auth.memberId) ?? 'member';
+    if (mine === 'admin') return;
+    if (mine === 'readonly' || this.restrictsMembers() || (targetMember && roles.get(targetMember) === 'admin')) {
+      throw new SyncError('forbidden_role', 403);
+    }
+  }
+
   /** `PLAN_LIMITS_ENFORCED` (plans.ts), as a method so that a test can run the object with it on. */
   private metered(): boolean {
     return PLAN_LIMITS_ENFORCED;
@@ -593,6 +620,8 @@ export class Household extends DurableObject<Env> {
       if (path === '/rotate' && request.method === 'POST') return await this.rotate(request);
       if (path === '/recovery_rotate' && request.method === 'POST') return await this.rotateRecovery(request);
       if (path === '/devices' && request.method === 'GET') return await this.devices(request);
+      if (path === '/role' && request.method === 'POST') return await this.setRole(request);
+      if (path === '/roles' && request.method === 'GET') return await this.listRoles(request);
       return textResponse('not found\n', 404);
     } catch (error) {
       if (error instanceof BodyTooLargeError) return jsonResponse({ code: 'body_too_large' }, 413);
@@ -658,6 +687,7 @@ export class Household extends DurableObject<Env> {
     const code = randomToken(16);
     const codeHash = await sha256Hex(code);
     const auth = this.authorise(secretHash);
+    this.mayManage(auth);
     const scopes = Array.isArray(body.scopes)
       ? (body.scopes as string[]).filter((s) => auth.scopes.includes(s))
       : auth.scopes;
@@ -1001,9 +1031,18 @@ export class Household extends DurableObject<Env> {
     const rejected: ({ id: string; code: string } & Partial<OverQuota>)[] = [];
     const vault = this.type() === 'personal';
     const quota = this.quota(Date.now());
+    const readOnly = !vault && this.roles().get(auth.memberId) === 'readonly';
     try {
       for (const record of records) {
         if (!auth.scopes.includes(record.scope)) throw new SyncError('forbidden_scope', 403);
+        // Read-only writes nothing — except taking back what is their own. Turning sharing off
+        // has to keep working: it is how their rows leave everybody else's ledger.
+        const takingBack = record.deleted === true && record.ownerMemberId === auth.memberId &&
+          (record.kind === 'transaction' || record.kind === 'asset');
+        if (readOnly && !takingBack) {
+          rejected.push({ id: record.id, code: 'read_only' });
+          continue;
+        }
         if (isVaultOnly(record.kind)) {
           if (!vault) {
             rejected.push({ id: record.id, code: 'kind_not_allowed' });
@@ -1206,6 +1245,7 @@ export class Household extends DurableObject<Env> {
     if (!member || member === auth.memberId) throw new SyncError('invalid_request', 400);
     const primary = this.primaryMember();
     if (primary && member === primary) throw new SyncError('forbidden_primary', 403);
+    this.mayManage(auth, member);
     // Only someone who was here: a device of theirs, or their profile. A made-up id would leave a
     // tombstone behind for nobody, take that id out of reach for ever and sweep every invite. A
     // buried profile still counts, so a removal whose answer was lost can be sent again — the
@@ -1256,17 +1296,16 @@ export class Household extends DurableObject<Env> {
    * Wipes the whole household from the server: every record, every device, every code. What is on
    * the phones is not touched — this is the server forgetting, not the family's data going.
    *
-   * A vault is one person's, so any of her devices may. A family belongs to several: only the
-   * founder, and only once they are the one member left (anyone else leaves, and the household
-   * closes itself when the last device does). Nothing is kept, the recovery hash included: the id
+   * A vault is one person's, so any of her devices may. A family belongs to several: only an
+   * admin (the founder, while they are here), and only once they are the one member left (anyone
+   * else leaves, and the household closes itself when the last device does). Nothing is kept, the recovery hash included: the id
    * can be claimed again, from nothing, and no old token opens it.
    */
   private async destroy(request: Request): Promise<Response> {
     const secretHash = await this.credential(request);
     const auth = this.authorise(secretHash);
     if (this.type() === 'family') {
-      const primary = this.primaryMember();
-      if (primary && auth.memberId !== primary) throw new SyncError('forbidden_primary', 403);
+      if (this.roles().get(auth.memberId) !== 'admin') throw new SyncError('forbidden_primary', 403);
       const members = new Set(
         [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')].map(memberOf),
       );
@@ -1300,6 +1339,9 @@ export class Household extends DurableObject<Env> {
     if (primary && targetMember === primary && auth.memberId !== primary) {
       throw new SyncError('forbidden_primary', 403);
     }
+    // Revoking oneself is leaving, which is always allowed. By device id too: a token older than
+    // identity has no member id on its row to match.
+    if (targetMember !== auth.memberId && device !== auth.id) this.mayManage(auth, targetMember);
     if (this.type() === 'personal') {
       // By device only: revoking the one member would be every device at once.
       if (member) throw new SyncError('forbidden_type', 403);
@@ -1317,6 +1359,49 @@ export class Household extends DurableObject<Env> {
     this.sql.exec('DELETE FROM pairing');
     await this.closeIfEmpty();
     return jsonResponse({ revoked: device || member });
+  }
+
+  /**
+   * An admin makes a member an admin, a member or read-only. The founder stays an admin, and the
+   * family is never left with none. Codes shown before the change die with it, as on a revocation.
+   */
+  private async setRole(request: Request): Promise<Response> {
+    const secretHash = await this.credential(request);
+    const body = await readJson(request, 4096);
+    const auth = this.authorise(secretHash);
+    this.onlyForFamily();
+    const roles = this.roles();
+    if (roles.get(auth.memberId) !== 'admin') throw new SyncError('forbidden_role', 403);
+    const member = typeof body.member === 'string' ? body.member : '';
+    const role = body.role;
+    if (!isRole(role)) throw new SyncError('invalid_role', 400);
+    const rows = [...this.sql.exec<{ id: string; member_id: string; token_hash: string; role: string }>(
+      'SELECT id, member_id, token_hash, role FROM device',
+    )];
+    const theirs = rows.filter((row) => memberOf(row) === member);
+    if (!member || theirs.length === 0) throw new SyncError('unknown_member', 404);
+    const primary = this.primaryMember();
+    if (member === primary && role !== 'admin') throw new SyncError('forbidden_primary', 403);
+    if (role !== 'admin' && roles.get(member) === 'admin') {
+      const others = rows.some((row) => memberOf(row) !== member && (row.role === 'admin' || memberOf(row) === primary));
+      if (!others) throw new SyncError('last_admin', 409);
+    }
+    this.ctx.storage.transactionSync(() => {
+      for (const row of theirs) this.sql.exec('UPDATE device SET role = ? WHERE id = ?', role, row.id);
+      this.sql.exec('DELETE FROM pairing');
+    });
+    return jsonResponse({ member, role });
+  }
+
+  /** Everybody's role, and the caller's own. In no order that means anything. */
+  private async listRoles(request: Request): Promise<Response> {
+    const auth = this.authorise(await this.credential(request));
+    this.onlyForFamily();
+    const roles = this.roles();
+    return jsonResponse({
+      role: roles.get(auth.memberId) ?? 'member',
+      members: [...roles].map(([memberId, role]) => ({ memberId, role })),
+    });
   }
 
   /**
@@ -1375,7 +1460,7 @@ async function throttled(limiter: RateLimit, request: Request, key: (ip: string)
 
 /** The calls that change who is in a household, rather than what it holds. */
 const MEMBERSHIP_ROUTES = new Set([
-  'invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate', 'recovery_rotate',
+  'invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate', 'recovery_rotate', 'role',
 ]);
 
 /**

@@ -114,7 +114,7 @@ describe('what a device has read', () => {
     await pull(a, 'since=3');
     await inside(a.hid, (sql) => {
       expect([...sql.exec<{ name: string; type: string }>('PRAGMA table_info(device)')].map((c) => c.name).sort())
-        .toEqual(['acked_seq', 'added_at', 'id', 'identity_locked', 'last_seen', 'member_id', 'scopes', 'token_hash']);
+        .toEqual(['acked_seq', 'added_at', 'id', 'identity_locked', 'last_seen', 'member_id', 'role', 'scopes', 'token_hash']);
       // last_seen is the day the device joined and stays so, as before.
       expect([...sql.exec<{ same: number }>('SELECT added_at = last_seen AS same FROM device')][0].same).toBe(1);
       expect([...sql.exec<{ k: string }>('SELECT k FROM meta ORDER BY k')].map((row) => row.k))

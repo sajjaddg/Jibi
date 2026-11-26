@@ -173,6 +173,8 @@ replacing the placeholder in its golden vector.
 | `POST /v1/revoke` | `{device}` or `{member}` | `{revoked}`; every outstanding code dies |
 | `POST /v1/rotate` | `{secret?}` | `{secret}`; the old one stops at once |
 | `GET /v1/devices` | — | `{devices: [{memberId, addedAt}]}`; a vault's also carry `id` |
+| `POST /v1/role` | `{member, role}` | the same; families only, admins only |
+| `GET /v1/roles` | — | `{role, members: [{memberId, role}]}`; families only |
 <!-- /endpoints -->
 
 `pair` is the one call a device makes before it has a secret: it sends `<hid>.` followed by 64
@@ -205,11 +207,29 @@ records **before** the failing one are stored. Re-sending is always safe (§ 6).
 
 ### Who may do what
 
-The founder (the member who claimed) cannot be removed or revoked by anyone else, and is the only
-one who may destroy a family, once no other member is left. Any device of a vault may destroy it.
-A member leaves with `leave`. A
-family whose last device goes is wiped, and its id can be claimed again from nothing. A vault
-differs as § 1 says.
+Any device of a vault may destroy it. In a family every member has a **role**:
+
+| | `admin` | `member` | `readonly` |
+|---|---|---|---|
+| pull, `hello`, `devices`, `roles`, `rotate`, `leave`, revoke own devices | yes | yes | yes |
+| push | yes | yes | no, except deleting their own `transaction` and `asset` rows |
+| `invite`, `remove`, revoke someone else | yes | yes, until `ROLES_RESTRICT_MEMBERS`; never against an admin | no |
+| `role` | yes | no | no |
+| `destroy`, once the only member | yes | no | no |
+
+A refused call is `403 forbidden_role`; a read-only push answers `200` with those records in
+`rejected` as `{id, code: "read_only"}`.
+
+The founder (the member who claimed) is an admin while there, cannot be removed or revoked by
+anyone else, and cannot have another role. New members are `member`. A family is never without an
+admin: `role` refuses to take the last one away (`409 last_admin`), and if the founder leaves
+having named nobody, the longest-standing member who is not read-only is the admin.
+
+**`ROLES_RESTRICT_MEMBERS` is off** (`sync/src/roles.ts`): released clients let any member invite
+and remove, so a plain member keeps that until the builds that know about roles are out.
+
+A member leaves with `leave`. A family whose last device goes is wiped, and its id can be claimed
+again from nothing. A vault differs as § 1 says.
 
 ## 5. Pull, cursors, compaction
 
@@ -317,6 +337,10 @@ and every delete, is accepted, and no device or member is removed.
 | `forbidden_owner` | 403 | writing a record only another member may write |
 | `forbidden_primary` | 403 | only the founder may, or nobody may do this to the founder |
 | `forbidden_type` | 403 | a call that is not for this type of household |
+| `forbidden_role` | 403 | the caller's role does not allow it |
+| `read_only` | 200, per record | a read-only member's write, listed in `rejected` |
+| `invalid_role` | 400 | not `admin`, `member` or `readonly` |
+| `last_admin` | 409 | the family would be left with no admin |
 | `unknown_member` | 404 | |
 | `not_recoverable` | 404 | § 4, recovery |
 | `unknown_device` | 404 | `revoke` names no device of this vault |

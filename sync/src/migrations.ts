@@ -115,6 +115,14 @@ export const MIGRATIONS: Migration[] = [
       sql.exec('CREATE INDEX IF NOT EXISTS record_tombstone ON record(seq) WHERE deleted = 1');
     },
   },
+  {
+    id: 5,
+    name: 'device gains role',
+    up(sql) {
+      // Empty means nobody has said (src/roles.ts), which is every device that exists today.
+      sql.exec("ALTER TABLE device ADD COLUMN role TEXT NOT NULL DEFAULT ''");
+    },
+  },
 ];
 
 /**

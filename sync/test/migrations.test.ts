@@ -4,6 +4,7 @@ import { MIGRATIONS, runMigrations, type Migration } from '../src/migrations';
 import v1 from './schemas/v1.sql?raw';
 import v2 from './schemas/v2.sql?raw';
 import v3 from './schemas/v3.sql?raw';
+import v4 from './schemas/v4.sql?raw';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv extends Env {}
@@ -28,6 +29,14 @@ const FIXTURES = [
     ids: ['c3'.repeat(16)].flatMap((m) => [1, 2, 3].map((n) => `txn:${m}:${n}`)),
     locked: 1,
   },
+  {
+    name: 'schema 4',
+    sql: v4,
+    secret: '4'.repeat(64),
+    scope: 'family:f4',
+    ids: [1, 2, 3].map((n) => `txn:${'c4'.repeat(16)}:${n}`),
+    locked: 1,
+  },
 ];
 
 /** Every step there is: a household that has taken them all. */
@@ -36,7 +45,7 @@ const ALL_STEPS = MIGRATIONS.map((step) => step.id);
 const RECORD_COLUMNS = [
   'author_member', 'body', 'deleted', 'device', 'id', 'kind', 'nonce', 'owner_member', 'scope', 'seq', 'updated_at',
 ];
-const DEVICE_COLUMNS = ['acked_seq', 'added_at', 'id', 'identity_locked', 'last_seen', 'member_id', 'scopes', 'token_hash'];
+const DEVICE_COLUMNS = ['acked_seq', 'added_at', 'id', 'identity_locked', 'last_seen', 'member_id', 'role', 'scopes', 'token_hash'];
 
 let next = 0;
 /** A household id nobody has used: the object comes into being by being addressed. */
