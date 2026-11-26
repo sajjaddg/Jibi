@@ -134,6 +134,29 @@ describe('POST /v1/destroy', () => {
     expect((await pull(theirs.token)).body.records).toHaveLength(1);
   });
 
+  it('is any device’s to ask of a vault, with several of them, and takes the recovery kit with it', async () => {
+    const hid = 'd9'.repeat(16);
+    const kit = 'c4'.repeat(32);
+    const res = await SELF.fetch(`https://sync.test/v1/claim?hid=${hid}`, {
+      method: 'POST', headers: json,
+      body: JSON.stringify({ scopes: [SCOPE], memberId: 'a9'.repeat(16), deviceId: 'f9'.repeat(16), type: 'personal', recovery: kit }),
+    });
+    const { secret } = (await res.json()) as { secret: string };
+    const first: Device = { token: `${hid}.${secret}`, hid, memberId: 'a9'.repeat(16) };
+    // `join` sends another member id; a vault makes the device hers.
+    const second = await join(first, 'b9'.repeat(16));
+    await push(first, 'r1');
+
+    expect((await destroy(second)).status).toBe(200);
+    expect((await pull(first.token)).status).toBe(401);
+    expect((await pull(second.token)).status).toBe(401);
+    expect(await tables(hid)).toEqual([]);
+    const recovered = await SELF.fetch('https://sync.test/v1/recover', {
+      method: 'POST', headers: json, body: JSON.stringify({ hid, recovery: kit }),
+    });
+    expect(recovered.status).toBe(404);
+  });
+
   it('is a POST that says it carries JSON, like the rest', async () => {
     const founder = await claim('d8'.repeat(16), 'a8'.repeat(16));
     const res = await SELF.fetch('https://sync.test/v1/destroy', {

@@ -802,7 +802,8 @@ An absent key is not asserted; an unknown key fails the run, so a typo cannot qu
 
 `POST /v1/destroy` makes the server forget a household: every record, device and code, then the
 object is as if never claimed, so the id can be claimed again from nothing and no old token opens
-it. Today only the founder may, and only once they are the last member; anyone else leaves. What is
+it. A vault may be destroyed by any of its devices. A family only by its founder, and only once
+they are the last member; anyone else leaves. What is
 on the phones is untouched. Cloudflare's point-in-time recovery keeps a deleted object's storage
 for 30 days, which the privacy text has to say.
 
