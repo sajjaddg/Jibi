@@ -14,11 +14,11 @@
 /** Every code the API answers with. test/metrics.test.ts fails when index.ts says one not here. */
 export const ERROR_CODES = [
   'already_claimed', 'body_too_large', 'device_exists', 'forbidden_owner', 'forbidden_primary',
-  'forbidden_scope', 'household_full', 'identity_exists', 'identity_locked', 'internal',
+  'forbidden_scope', 'forbidden_type', 'household_full', 'identity_exists', 'identity_locked', 'internal',
   'invalid_code', 'invalid_device', 'invalid_hid', 'invalid_id', 'invalid_identity', 'invalid_kind',
   'invalid_limit', 'invalid_member', 'invalid_member_tombstone', 'invalid_nonce', 'invalid_record',
-  'invalid_request', 'invalid_scope', 'invalid_secret', 'invalid_since', 'invalid_updated_at',
-  'member_exists', 'members_remain', 'rate_limited', 'resync_required', 'too_many_devices',
+  'invalid_request', 'invalid_scope', 'invalid_secret', 'invalid_since', 'invalid_type',
+  'invalid_updated_at', 'last_device', 'member_exists', 'members_remain', 'rate_limited', 'resync_required', 'too_many_devices',
   'too_many_records', 'unauthorised', 'unavailable', 'unknown_member', 'unsupported_media_type',
 ] as const;
 
