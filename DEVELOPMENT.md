@@ -4,6 +4,7 @@
 app/      Android app (Kotlin + Compose)
 worker/   Cloudflare Worker that serves prices and public-wallet balances
 sync/     Cloudflare Worker + Durable Object for encrypted family sync
+billing/  Cloudflare Worker + D1 that sells Pro
 pwa/      the same app for iPhone users, served by sync/
 ```
 
@@ -294,6 +295,26 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/analytics_eng
 ```
 
 What to watch, and at what level to act, is in `docs/RUNBOOK.md`.
+
+## The billing Worker
+
+```bash
+cd billing
+pnpm install
+pnpm run check
+pnpm run dev       # local D1; first: pnpm exec wrangler d1 migrations apply muchtoman-billing --local
+```
+
+`pay.muchtoman.com`, custom domain only (`workers_dev` is off). It keeps licenses in D1
+(`migrations/`) and nothing about people: no household id, address, phone number, e-mail or name.
+Today it answers `GET /v1/health` and nothing else; buying and redeeming are #46 and #47.
+
+**Before the first deploy** (the owner's, none of it done): create the database
+(`pnpm exec wrangler d1 create muchtoman-billing`), put its id in `wrangler.jsonc` in place of the
+zeros, and check that rate-limit namespace `3001` is free on the account. `pnpm run deploy` applies
+migrations to the remote database and then deploys, and refuses uncommitted changes in `billing/`.
+
+A D1 migration is a new numbered file in `migrations/`, never an edit of one that has run.
 
 ## Adding an asset
 

@@ -7,7 +7,7 @@ non-negotiable). When this file and those disagree, they win — fix the drift h
 ## What this is
 
 A Persian-UI Android app that answers «چقدر تومن دارم؟» — how much is all my money, in
-Toman — plus two Cloudflare Workers and a PWA that is the same app for iPhone users. The users are in Iran; privacy is
+Toman — plus three Cloudflare Workers and a PWA that is the same app for iPhone users. The users are in Iran; privacy is
 the product: no accounts, no analytics SDK, sync is ciphertext the server cannot read.
 
 ## Layout
@@ -17,6 +17,7 @@ the product: no accounts, no analytics SDK, sync is ciphertext the server cannot
 | `app/` | Android app (Kotlin + Compose) |
 | `worker/` | Cloudflare Worker that serves prices and public-wallet balances |
 | `sync/` | Cloudflare Worker + Durable Object for encrypted family sync |
+| `billing/` | Cloudflare Worker + D1 that sells Pro; knows no household and keeps no personal data |
 | `pwa/` | the same app in the browser (iPhone users), served by `sync/` |
 
 ## Verify your change
@@ -28,6 +29,7 @@ Run the block for every package you touched:
 cd worker && pnpm install && pnpm run check                  # worker/
 cd pwa && pnpm install && pnpm run check                     # pwa/ (browser tests: pnpm run test:browser)
 cd pwa && pnpm run build && cd ../sync && pnpm install && pnpm run check   # sync/ serves ../pwa/dist, build it first
+cd billing && pnpm install && pnpm run check                 # billing/
 ```
 
 `pwa/`'s tests read the golden SMS corpus out of `app/src/test/resources/sms/`, so a parser
@@ -62,6 +64,8 @@ change needs both the Gradle and the pwa blocks run.
   The server enforces it (`sync/src/kinds.ts`), and no client relies on that to be right.
 - **Never delete a vault on its own.** No expiry for being unused, no plan ending, no last device
   leaving: only `/v1/destroy`. A plan limit refuses new things and removes nothing (`PRODUCT.md`).
+- **`billing/` never learns a household id and `sync/` never learns a license.** Keep them
+  apart: no shared database, no id that appears in both.
 - **Never point anything at `workers.dev`.** Iran DNS-sinkholes the whole domain; the custom
   domains (`rates.muchtoman.com`, `sync.muchtoman.com`) are the product's lifeline.
 - **Persian copy is the interface**: casual register, Persian digits, words carry warnings and
