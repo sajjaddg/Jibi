@@ -2,10 +2,10 @@
   "name": "manual_txn",
   "kind": "manual_txn",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "manual_txn:m:018f0000-0000-7000-8000-0000000000cc",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|manual_txn|manual_txn:m:018f0000-0000-7000-8000-0000000000cc",
+  "id": "manual_txn:d53d53ad32f71e19769e519996960be5106b0ab4ec9e5a3075fd1d7a284936a2",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|manual_txn|manual_txn:d53d53ad32f71e19769e519996960be5106b0ab4ec9e5a3075fd1d7a284936a2",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "sj/CjlrKcWg+PUET",
-  "plaintext": "{\"kind\":\"manual_txn\"}",
-  "body": "hy5l2l2M77aey05ghl5cFY3HFoTr8JKrQFGN/Hb/lfrFJdGZoA=="
+  "plaintext": "{\"kind\":\"manual_txn\",\"key\":\"m:018f0000-0000-7000-8000-0000000000cc\"}",
+  "body": "hy5l2l2M77aey05ghl5cFY3HFoS6sOFcE5d7xaK7Fo5gvdvfUHW2u55EtAyxSAtM+vZF5MLsikcm8m3y/PVb52NDrgtTlEAoZKtCbeiMu8w280jH"
 }

@@ -2,10 +2,10 @@
   "name": "sms",
   "kind": "sms",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "sms:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|sms|sms:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7",
+  "id": "sms:0abfa2bb91b6dbd439e7d8771e19f570f8084aa16d909659acbf4b92e2fa2a29",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|sms|sms:0abfa2bb91b6dbd439e7d8771e19f570f8084aa16d909659acbf4b92e2fa2a29",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "ZFsgaInnbD8Qbj2E",
-  "plaintext": "{\"kind\":\"sms\"}",
-  "body": "vdrunufCO+aakhQVr1DsyRJmRpphQyq5Ed5sx819"
+  "plaintext": "{\"kind\":\"sms\",\"key\":\"d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7\"}",
+  "body": "vdrunufCO+aakhQVrwFfk/8BYg7FBJUhj8dZGKzi0IgdMezspp5nDnKnQH4xNT8Wr0S9Oay05sDx/2dJ7nY3QuPQIesm0t21c46cIm78L2RcJOmPX6CvzY9TyejmhH9VFdfdpSpufA=="
 }

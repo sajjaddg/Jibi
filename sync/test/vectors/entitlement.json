@@ -2,10 +2,10 @@
   "name": "entitlement",
   "kind": "entitlement",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "entitlement:018f0000-0000-7000-8000-0000000000ee",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|entitlement|entitlement:018f0000-0000-7000-8000-0000000000ee",
+  "id": "entitlement:69561b0122f16afb7f32d5138bc93bd8afb1ae82de7942fd9e3a3485dae71906",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|entitlement|entitlement:69561b0122f16afb7f32d5138bc93bd8afb1ae82de7942fd9e3a3485dae71906",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "ARZ2ozt6DDInMo2D",
-  "plaintext": "{\"kind\":\"entitlement\"}",
-  "body": "6JKwDcHOWl3EULWvwnBPULlok+iLaP6hfIg0TDfthzXQGhF5Q2w="
+  "plaintext": "{\"kind\":\"entitlement\",\"key\":\"00112233445566778899aabbccddeeff\"}",
+  "body": "6JKwDcHOWl3EULWvwnBPULlok+iLOaPu/hV95x+dlv4nn1MrxHfDIhSLYrw7GFaatXQcm+kfgULyvlOKo3s3E/9ITK8MXVW+rdHmnqz02Q=="
 }

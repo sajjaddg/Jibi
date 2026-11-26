@@ -2,10 +2,10 @@
   "name": "rule",
   "kind": "rule",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "rule:1",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|rule|rule:1",
+  "id": "rule:3e858fe03c5379fd994d494c6831e2d74e459c55b73dc35928bdb1ce0579303c",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|rule|rule:3e858fe03c5379fd994d494c6831e2d74e459c55b73dc35928bdb1ce0579303c",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "mbMqXcZZjbdjyhC3",
-  "plaintext": "{\"kind\":\"rule\"}",
-  "body": "5tmLEpJP/RHhAO5AnuIiaUle15psQ+WQj9lNaVzqIw=="
+  "plaintext": "{\"kind\":\"rule\",\"key\":\"rule-row-id\"}",
+  "body": "5tmLEpJP/RHhAO5AnuJz4rrZ5Gspf4FfzBO4LcU3QE1hU40dd3VQ3XVoiErjzvR4I2Ae"
 }

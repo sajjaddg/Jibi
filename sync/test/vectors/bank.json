@@ -2,10 +2,10 @@
   "name": "bank",
   "kind": "bank",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "bank:SAMAN",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|bank|bank:SAMAN",
+  "id": "bank:0e2f88525c8a56855e58f11e1d6ab46f8989e6a16b566b602dcb404483a97781",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|bank|bank:0e2f88525c8a56855e58f11e1d6ab46f8989e6a16b566b602dcb404483a97781",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "sXb834ZlfpN26gKH",
-  "plaintext": "{\"kind\":\"bank\"}",
-  "body": "qKhNcIGb5yN9AW4B9PkHfc4t7fhkMueVv9Ikusc1iw=="
+  "plaintext": "{\"kind\":\"bank\",\"key\":\"SAMAN\"}",
+  "body": "qKhNcIGb5yN9AW4B9PlWw/nENMVbYupPJ1mG9F5UeX5HizuSCQpwdZWXmAC9"
 }

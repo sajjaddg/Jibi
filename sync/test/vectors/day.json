@@ -2,10 +2,10 @@
   "name": "day",
   "kind": "day",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "day:2026-11-26",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|day|day:2026-11-26",
+  "id": "day:5409e1dadcaa2da656683d18ab4ada93e48d69a863d960164cfebbd34fdc4c16",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|day|day:5409e1dadcaa2da656683d18ab4ada93e48d69a863d960164cfebbd34fdc4c16",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "WtZEixgoWWYEvV6A",
-  "plaintext": "{\"kind\":\"day\"}",
-  "body": "h/8Yd/5Hq9/T09g+oUi7xFuL2ybuPUEXGryGpsmP"
+  "plaintext": "{\"kind\":\"day\",\"key\":\"2026-11-26\"}",
+  "body": "h/8Yd/5Hq9/T09g+oRmMnrwpaKj7NIowlFCWXC/G4UcssVVxatjOYil/j0SOGGIRIQ=="
 }
