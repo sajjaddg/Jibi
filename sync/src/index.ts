@@ -22,6 +22,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { isKind, KINDS, reservedKind, type Kind } from './kinds';
+import { runMigrations } from './migrations';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -35,10 +36,8 @@ const MAX_RECORD_ROWS = 120_000;
 // The cap counts live rows: a tombstone is history, not growth, and a household that deletes as
 // it goes must not fill up on its own deletions. Every row ever stored still meets this wider
 // backstop, so burying is not a way around the bound.
-// ponytail: tombstones are never compacted — this server keeps no device cursors, so it cannot
-// tell when every phone has pulled one. A household that buries 360k rows in its life hits
-// household_full for good; dropping tombstones older than every live device's cursor is the
-// upgrade.
+// Tombstones are compacted (see `compact`), so this backstop is for a household that buries faster
+// than its devices read, not for one that lives long.
 const MAX_STORED_ROWS = 4 * MAX_RECORD_ROWS;
 // And by size, counted in ciphertext bytes. A real household's rows are a few hundred bytes each,
 // tens of megabytes at the row cap; at 64 KiB a body, the row caps alone would allow some 30 GB,
@@ -56,6 +55,19 @@ const PROTOCOL = 2;
  * her to update rather than failing in a way she cannot read.
  */
 const MIN_CLIENT = { android: 0, pwa: 0 };
+/** How long a tombstone is kept at the least, counted from its own stamp: a day-old deletion is news. */
+const TOMBSTONE_KEEP_MS = 90 * 24 * 60 * 60 * 1000;
+/**
+ * A device that has been behind for this long — the first thing it has not read was written this
+ * long ago — no longer holds the horizon back. A phone in a drawer must not keep every tombstone
+ * for ever; when it comes back it is told to start over (410 resync_required) and loses nothing.
+ */
+const STALE_DEVICE_MS = 180 * 24 * 60 * 60 * 1000;
+const COMPACT_EVERY_MS = 24 * 60 * 60 * 1000;
+/** A run that hit its row cap has more to do, and says so by waking again soon. */
+const COMPACT_RESUME_MS = 60 * 1000;
+/** Rows one compaction removes at most, so one alarm is never an unbounded write. */
+const MAX_PURGE_PER_RUN = 10_000;
 // LWW griefing/skew bound: a stamp from the far future would win every merge for ever, so
 // nothing may claim to be written more than a day ahead of this server's clock. The clamped
 // value is returned to the pusher so both sides converge on the same stamp.
@@ -321,74 +333,22 @@ export class Household extends DurableObject<Env> {
     this.claimed = [...this.sql.exec(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'device'",
     )].length > 0;
-    if (this.claimed) ctx.blockConcurrencyWhile(async () => this.migrate());
+    if (this.claimed) {
+      ctx.blockConcurrencyWhile(async () => {
+        this.migrate();
+        // A household made before compaction has no alarm; it gets one the first time it wakes.
+        if ((await ctx.storage.getAlarm()) === null) await ctx.storage.setAlarm(Date.now() + COMPACT_EVERY_MS);
+      });
+    }
   }
 
+  /**
+   * Numbered schema steps (./migrations.ts), then the two pieces of upkeep that are not schema and
+   * are safe to repeat: they run on every wake, and a test that seeds rows behind the object's back
+   * runs them again.
+   */
   private migrate(): void {
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS record (
-        id         TEXT PRIMARY KEY,
-        scope      TEXT NOT NULL,
-        seq        INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        device     TEXT NOT NULL,
-        kind       TEXT NOT NULL DEFAULT 'legacy',
-        owner_member TEXT NOT NULL DEFAULT '',
-        author_member TEXT NOT NULL DEFAULT '',
-        deleted    INTEGER NOT NULL DEFAULT 0,
-        nonce      TEXT NOT NULL,
-        body       TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS record_seq ON record(seq);
-      DROP INDEX IF EXISTS record_scope_seq;
-
-      CREATE TABLE IF NOT EXISTS device (
-        id         TEXT PRIMARY KEY,
-        member_id  TEXT NOT NULL DEFAULT '',
-        identity_locked INTEGER NOT NULL DEFAULT 1,
-        token_hash TEXT NOT NULL,
-        scopes     TEXT NOT NULL,
-        added_at   INTEGER NOT NULL,
-        last_seen  INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS pairing (
-        code_hash  TEXT PRIMARY KEY,
-        scopes     TEXT NOT NULL,
-        expires_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS _sql_schema_migrations (
-        id INTEGER PRIMARY KEY,
-        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
-
-    const recordColumns = new Set(
-      [...this.sql.exec<{ name: string }>('PRAGMA table_info(record)')].map((row) => row.name),
-    );
-    if (!recordColumns.has('kind')) {
-      this.sql.exec("ALTER TABLE record ADD COLUMN kind TEXT NOT NULL DEFAULT 'legacy'");
-    }
-    if (!recordColumns.has('owner_member')) {
-      this.sql.exec("ALTER TABLE record ADD COLUMN owner_member TEXT NOT NULL DEFAULT ''");
-    }
-    if (!recordColumns.has('author_member')) {
-      this.sql.exec("ALTER TABLE record ADD COLUMN author_member TEXT NOT NULL DEFAULT ''");
-    }
-    const deviceColumns = new Set(
-      [...this.sql.exec<{ name: string }>('PRAGMA table_info(device)')].map((row) => row.name),
-    );
-    if (!deviceColumns.has('member_id')) {
-      this.sql.exec("ALTER TABLE device ADD COLUMN member_id TEXT NOT NULL DEFAULT ''");
-    }
-    if (!deviceColumns.has('identity_locked')) {
-      // Existing tokens predate explicit person/device identity. They get exactly one upgrade.
-      this.sql.exec('ALTER TABLE device ADD COLUMN identity_locked INTEGER NOT NULL DEFAULT 0');
-    }
-    this.sql.exec('INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (2)');
-    this.sql.exec('INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (3)');
+    runMigrations(this.ctx.storage);
     // last_seen is no longer kept: nothing read it, and it said when each phone was last online.
     // The column stays NOT NULL, so it holds the day the device joined, and what it held goes.
     this.sql.exec('UPDATE device SET last_seen = added_at WHERE last_seen != added_at');
@@ -524,6 +484,7 @@ export class Household extends DurableObject<Env> {
       now,
     );
     this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'primary_member', memberId);
+    await this.ctx.storage.setAlarm(now + COMPACT_EVERY_MS);
     return jsonResponse({ secret, memberId, deviceId });
   }
 
@@ -676,6 +637,95 @@ export class Household extends DurableObject<Env> {
     });
   }
 
+  /** The highest seq a tombstone has been removed at: a device that last read below it must start over. */
+  private horizon(): number {
+    const row = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'horizon')][0];
+    return row ? Number(row.v) : 0;
+  }
+
+  private head(): number {
+    const row = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'seq')][0];
+    return row ? Number(row.v) : 0;
+  }
+
+  /**
+   * Asking for everything after N says the device holds everything up to N, so that is what is
+   * written down: a number, never a time. It only moves forward, which also means an idle poll
+   * writes nothing, and it cannot pass the head, so one device cannot claim to have read what does
+   * not exist yet and let the horizon run ahead on its word.
+   */
+  private acknowledge(deviceId: string, since: number): void {
+    const acked = Math.floor(Math.min(since, this.head()));
+    if (acked > 0) this.sql.exec('UPDATE device SET acked_seq = ? WHERE id = ? AND acked_seq < ?', acked, deviceId, acked);
+  }
+
+  /**
+   * How far every device has read. A device that has caught up holds nothing back, and neither
+   * does one that has been behind for half a year (STALE_DEVICE_MS) — judged by the record stamp
+   * of the first thing it has not read, which is already here, not by a time kept per device.
+   */
+  private readHorizon(now: number): number {
+    const head = this.head();
+    let slowest = head;
+    for (const device of [...this.sql.exec<{ acked_seq: number }>('SELECT acked_seq FROM device')]) {
+      const acked = Math.min(device.acked_seq, head);
+      const unread = [...this.sql.exec<{ updated_at: number }>(
+        'SELECT updated_at FROM record WHERE seq > ? ORDER BY seq LIMIT 1',
+        acked,
+      )][0];
+      if (!unread || unread.updated_at < now - STALE_DEVICE_MS) continue;
+      slowest = Math.min(slowest, acked);
+    }
+    return slowest;
+  }
+
+  /**
+   * Removes tombstones every device has read and that are old enough to be history: below the
+   * read horizon, and stamped more than TOMBSTONE_KEEP_MS ago. Live rows are never touched — what
+   * compaction frees is the room a household that deletes as it goes would otherwise run out of
+   * (`MAX_STORED_ROWS`). One batch, one transaction, so the counters and the rows cannot disagree.
+   */
+  private compact(now: number): { purged: number; capped: boolean } {
+    const below = this.readHorizon(now);
+    const cutoff = now - TOMBSTONE_KEEP_MS;
+    const batch = 'SELECT seq, LENGTH(CAST(body AS BLOB)) AS size FROM record ' +
+      'WHERE deleted = 1 AND seq <= ? AND updated_at < ? ORDER BY seq LIMIT ?';
+    let purged = 0;
+    this.ctx.storage.transactionSync(() => {
+      const found = [...this.sql.exec<{ n: number; last: number | null; bytes: number | null }>(
+        `SELECT COUNT(*) AS n, MAX(seq) AS last, SUM(size) AS bytes FROM (${batch})`,
+        below, cutoff, MAX_PURGE_PER_RUN,
+      )][0];
+      if (!found || found.n === 0 || found.last === null) return;
+      this.sql.exec(
+        `DELETE FROM record WHERE id IN (SELECT id FROM record WHERE deleted = 1 AND seq <= ? ` +
+          'AND updated_at < ? ORDER BY seq LIMIT ?)',
+        below, cutoff, MAX_PURGE_PER_RUN,
+      );
+      const counts = this.counts();
+      this.saveCounts({ live: counts.live, stored: counts.stored - found.n, bytes: counts.bytes - (found.bytes ?? 0) });
+      this.sql.exec(
+        'INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)',
+        'horizon',
+        String(Math.max(this.horizon(), found.last)),
+      );
+      purged = found.n;
+    });
+    return { purged, capped: purged >= MAX_PURGE_PER_RUN };
+  }
+
+  /** The daily compaction. A household that has been closed since the alarm was set does nothing and is not woken again. */
+  async alarm(): Promise<void> {
+    if (!this.claimed) return;
+    let wait = COMPACT_EVERY_MS;
+    try {
+      if (this.compact(Date.now()).capped) wait = COMPACT_RESUME_MS;
+    } catch (error) {
+      console.error(JSON.stringify({ message: 'household compaction failed', error: errorMessage(error) }));
+    }
+    await this.ctx.storage.setAlarm(Date.now() + wait);
+  }
+
   private async pull(request: Request, url: URL): Promise<Response> {
     const auth = this.authorise(await this.credential(request));
     const since = Number(url.searchParams.get('since') ?? '0');
@@ -685,6 +735,14 @@ export class Household extends DurableObject<Env> {
       throw new SyncError('invalid_limit', 400);
     }
     const limit = Math.min(requestedLimit, 1000);
+    // `live=1` is a pull from the start that does not need the tombstones compaction has been
+    // removing: how a phone that fell behind the horizon starts over.
+    const live = url.searchParams.get('live') === '1';
+    const horizon = this.horizon();
+    // A device that last read before the horizon may have missed a deletion that no longer exists
+    // to be read, and would keep that row for ever. Better told so than left to find out.
+    if (!live && since < horizon) return jsonResponse({ code: 'resync_required', horizon }, 410);
+    this.acknowledge(auth.id, since);
 
     // The second lock. The key is the first: a scope she has no key for is unreadable even if
     // this filter were wrong. Both, because one of them being enough is not a thing to rely on.
@@ -706,7 +764,10 @@ export class Household extends DurableObject<Env> {
         hasMore = true;
         break;
       }
-      if (!auth.scopes.includes(row.scope)) {
+      // A tombstone at or below the horizon is one compaction may already have removed from other
+      // pulls, so a start-over does without all of them alike. Above it a deletion may be the
+      // very one for a row this walk handed over a page ago, and is sent.
+      if (!auth.scopes.includes(row.scope) || (live && row.deleted === 1 && row.seq <= horizon)) {
         highest = row.seq;
         scanned++;
         continue;
@@ -737,6 +798,7 @@ export class Household extends DurableObject<Env> {
       seq: highest,
       records: rows,
       hasMore,
+      horizon,
       rotationClientSecret: true,
       memberId: auth.memberId,
       deviceId: auth.id,
@@ -971,6 +1033,8 @@ export class Household extends DurableObject<Env> {
   private async closeIfEmpty(): Promise<void> {
     const devices = [...this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM device')][0];
     if (devices && devices.n > 0) return;
+    // deleteAll leaves the alarm standing, and a closed household has nothing to compact.
+    await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
     this.claimed = false;
   }

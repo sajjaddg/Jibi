@@ -727,6 +727,37 @@ each with the reading it must produce and a `why` explaining which phone produce
 Both parsers read it, so the Kotlin and TypeScript sides cannot drift on the cases they share.
 An absent key is not asserted; an unknown key fails the run, so a typo cannot quietly weaken it.
 
+### Cursors, tombstones and the start-over
+
+A pull after `since=N` tells the household that device holds everything up to N, and the device's
+`acked_seq` moves up to it — a number, never a time, and never past the head. Once a day each
+household's alarm removes the tombstones that every device has read and that are more than 90 days
+old by their own stamp; live rows are never touched. A device that has been behind so long that
+the first row it has not read is 180 days old is no longer waited for, which is judged from stamps
+already in the table rather than from anything kept per device. `meta.horizon` is the highest seq
+a tombstone was removed at, every pull returns it, and a pull that is not `live=1` with
+`since` below it answers `410 {code: "resync_required", horizon}`. The client starts over with
+`since=0&live=1`, which leaves out tombstones at or below the horizon and sends the rest, because
+one above it may be the deletion of a row the walk already handed over. Since deleted rows are not
+sent, a client that starts over must treat what it receives as everything that is live and drop
+the synced rows that are not in it, keeping only what it has not yet published.
+
+Compaction is the one thing here that makes an old client's pull fail: a Worker that has purged
+something answers a device that re-pulls from zero (a new pairing, a `SYNC_READ_VERSION` bump)
+with a 410 until that client learns `live=1`. Ship the client first, then deploy `sync/`.
+
+### The household schema
+
+Each household is its own SQLite database inside a Durable Object, so a deploy cannot migrate
+them together: every object takes the steps it is missing the next time it wakes, and one nobody
+opened for months may be several behind. The steps are `MIGRATIONS` in `sync/src/migrations.ts`,
+numbered 1, 2, 3 … and recorded in `_sql_schema_migrations` in the same transaction that runs
+them. A step is never edited once it has shipped, and it only adds: no `DROP`, no rename, no
+deleted rows — the ledger is ciphertext no rescan can rebuild, which is why `durable.db` has the
+same rule. To change the schema, append a step and add the dump of the schema before it to
+`sync/test/schemas/`; `test/migrations.test.ts` wakes a household left at each dump and reads its
+ledger back over the ordinary pull.
+
 ### Deploying
 
 ```bash
