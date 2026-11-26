@@ -316,6 +316,11 @@ migrations to the remote database and then deploys, and refuses uncommitted chan
 
 A D1 migration is a new numbered file in `migrations/`, never an edit of one that has run.
 
+Staging is `env.staging`: `muchtoman-billing-staging` on `staging-pay.muchtoman.com`, its own D1
+and rate-limit counter (`4001`), and `PAYMENTS = "sandbox"`. `pnpm run deploy:staging` and
+`pnpm run tail:staging`. It needs its own database created and its id put in, and its own signing
+key — never production's. `pnpm run check` dry-runs both environments.
+
 ## Adding an asset
 
 **Crypto: nothing to do** — anything in CoinGecko's top 250 is already in the picker.
@@ -887,8 +892,8 @@ domain `staging-sync.muchtoman.com` — never `workers.dev`. It reads rates from
 Worker. `pnpm run check` dry-runs both environments, so a broken staging block fails CI, but
 nothing here has deployed it: the first `deploy:staging` creates the Worker and attaches the
 domain, and the zone must be able to host `staging-sync.muchtoman.com`. To point a client at it,
-Android takes `-Pmuchtoman.syncUrl=https://staging-sync.muchtoman.com`; `billing/` gets the same
-block when it exists.
+Android takes `-Pmuchtoman.syncUrl=https://staging-sync.muchtoman.com`; `billing/` has the same
+block (§ The billing Worker).
 
 ## September 2026 review fixes
 

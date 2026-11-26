@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "sh ../tools/deploy-guard.sh billing && wrangler d1 migrations apply muchtoman-billing --remote && wrangler deploy --message \"$(git rev-parse --short HEAD)\"",
+    "deploy:staging": "sh ../tools/deploy-guard.sh billing && wrangler d1 migrations apply muchtoman-billing-staging --env staging --remote && wrangler deploy --env staging --message \"$(git rev-parse --short HEAD)\"",
     "tail": "wrangler tail",
+    "tail:staging": "wrangler tail --env staging",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test && wrangler deploy --dry-run"
+    "check": "pnpm run typecheck && pnpm run test && wrangler deploy --dry-run && wrangler deploy --dry-run --env staging"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.23.0",
