@@ -1,0 +1,11 @@
+{
+  "name": "fund_entry",
+  "kind": "fund_entry",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "fund_entry:018f0000-0000-7000-8000-0000000000f2",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|fund_entry|fund_entry:018f0000-0000-7000-8000-0000000000f2",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "1r3ETNqHJy1eMrlb",
+  "plaintext": "{\"kind\":\"fund_entry\",\"fundId\":\"018f0000-0000-7000-8000-0000000000f1\",\"amountRial\":20000000}",
+  "body": "Nlkq4C6frgRl6qDwJilhh1rF6ErHQkemmptn5hsrOPHvOluDr4FYGllkV5t+Odep3nANUJQFPsMC+HX7I41pYgrM3v/7Ekh0+HG58Ma/0mGCh40CJcogCWCuILZQHohBTwJswASALb3Rfy8="
+}
