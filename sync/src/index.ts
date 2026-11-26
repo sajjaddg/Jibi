@@ -1198,21 +1198,22 @@ export class Household extends DurableObject<Env> {
    * Wipes the whole household from the server: every record, every device, every code. What is on
    * the phones is not touched — this is the server forgetting, not the family's data going.
    *
-   * Today's households are all families and the only role is the founder, so the rule is the
-   * family one: the founder, and only once they are the one member left (anyone else leaves, and
-   * the household closes itself when the last device does). A personal vault, when it exists,
-   * lets any of its own devices do this. Nothing is kept: the id can be claimed again, from
-   * nothing, and no old token opens it.
+   * A vault is one person's, so any of her devices may. A family belongs to several: only the
+   * founder, and only once they are the one member left (anyone else leaves, and the household
+   * closes itself when the last device does). Nothing is kept, the recovery hash included: the id
+   * can be claimed again, from nothing, and no old token opens it.
    */
   private async destroy(request: Request): Promise<Response> {
     const secretHash = await this.credential(request);
     const auth = this.authorise(secretHash);
-    const primary = this.primaryMember();
-    if (primary && auth.memberId !== primary) throw new SyncError('forbidden_primary', 403);
-    const members = new Set(
-      [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')].map(memberOf),
-    );
-    if (members.size > 1) throw new SyncError('members_remain', 409);
+    if (this.type() === 'family') {
+      const primary = this.primaryMember();
+      if (primary && auth.memberId !== primary) throw new SyncError('forbidden_primary', 403);
+      const members = new Set(
+        [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')].map(memberOf),
+      );
+      if (members.size > 1) throw new SyncError('members_remain', 409);
+    }
     await this.wipe();
     return jsonResponse({ destroyed: true });
   }

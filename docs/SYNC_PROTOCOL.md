@@ -206,7 +206,8 @@ records **before** the failing one are stored. Re-sending is always safe (§ 6).
 ### Who may do what
 
 The founder (the member who claimed) cannot be removed or revoked by anyone else, and is the only
-one who may destroy a household, once no other member is left. A member leaves with `leave`. A
+one who may destroy a family, once no other member is left. Any device of a vault may destroy it.
+A member leaves with `leave`. A
 family whose last device goes is wiped, and its id can be claimed again from nothing. A vault
 differs as § 1 says.
 
