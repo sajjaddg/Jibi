@@ -90,6 +90,8 @@ const MAX_FEEDBACK_BYTES = 8 * 1024;
 
 /** How long a pairing token is good for. Long enough to walk to the other phone, no longer. */
 const PAIRING_TTL_MS = 10 * 60 * 1000;
+/** Or a day, when she asks: for someone who is not in the room (#42). */
+const PAIRING_TTLS: ReadonlySet<unknown> = new Set([PAIRING_TTL_MS, 24 * 60 * 60 * 1000]);
 // A code is somebody about to join, and no household has room for more of them than it has for
 // devices. Past that the oldest gives way, so a token stuck in an invite loop cannot grow the
 // table without bound inside one TTL.
@@ -624,6 +626,8 @@ export class Household extends DurableObject<Env> {
       if (path === '/devices' && request.method === 'GET') return await this.devices(request);
       if (path === '/role' && request.method === 'POST') return await this.setRole(request);
       if (path === '/roles' && request.method === 'GET') return await this.listRoles(request);
+      if (path === '/invites' && request.method === 'GET') return await this.invites(request);
+      if (path === '/invites_cancel' && request.method === 'POST') return await this.cancelInvite(request);
       return textResponse('not found\n', 404);
     } catch (error) {
       if (error instanceof BodyTooLargeError) return jsonResponse({ code: 'body_too_large' }, 413);
@@ -694,6 +698,8 @@ export class Household extends DurableObject<Env> {
       ? (body.scopes as string[]).filter((s) => auth.scopes.includes(s))
       : auth.scopes;
     if (scopes.length === 0) throw new SyncError('invalid_scope', 400);
+    const ttl = body.expiresIn ?? PAIRING_TTL_MS;
+    if (!PAIRING_TTLS.has(ttl)) throw new SyncError('invalid_expiry', 400);
     // A code that could not be redeemed is better refused while she is the one holding the phone.
     // Only for a plan's limit: at the hard cap `pair` says so, as it always has.
     const full = this.metered() ? this.noRoomToJoin(Date.now()) : null;
@@ -707,11 +713,47 @@ export class Household extends DurableObject<Env> {
       'INSERT OR REPLACE INTO pairing (code_hash, scopes, expires_at) VALUES (?, ?, ?)',
       codeHash,
       JSON.stringify(scopes),
-      Date.now() + PAIRING_TTL_MS,
+      Date.now() + (ttl as number),
     );
     // The scope KEY is not here and never passes through this Worker. It rides in the fragment
     // of the QR's URL, which is never sent in an HTTP request at all.
-    return jsonResponse({ code, expiresIn: PAIRING_TTL_MS });
+    // `places` is how many more may join, so the screen can say it before the last one is gone.
+    return jsonResponse({ code, expiresIn: ttl, places: this.places(Date.now()) });
+  }
+
+  /** How many more devices (in a family, people) may join now. */
+  private places(now: number): number {
+    const quota = this.quota(now);
+    const used = this.used();
+    const devices = quota.devices - used.devices;
+    return Math.max(0, this.type() === 'family' ? Math.min(devices, quota.members - used.members) : devices);
+  }
+
+  /** The caller must be an admin: who is invited is the household's door. */
+  private async admin(request: Request): Promise<void> {
+    const secretHash = await this.credential(request);
+    if (this.roles().get(this.authorise(secretHash).memberId) !== 'admin') throw new SyncError('forbidden_role', 403);
+  }
+
+  /** Codes still open. Each is named by its hash, which cancels it and cannot redeem it. */
+  private async invites(request: Request): Promise<Response> {
+    await this.admin(request);
+    const open = [...this.sql.exec<{ code_hash: string; expires_at: number }>(
+      'SELECT code_hash, expires_at FROM pairing WHERE expires_at >= ? ORDER BY expires_at, code_hash',
+      Date.now(),
+    )].map((row) => ({ id: row.code_hash, expiresAt: row.expires_at }));
+    return jsonResponse({ invites: open });
+  }
+
+  private async cancelInvite(request: Request): Promise<Response> {
+    const secretHash = await this.credential(request);
+    const body = await readJson(request, 4096);
+    // Checked after the body, in the same turn as the delete (see `authorise`).
+    if (this.roles().get(this.authorise(secretHash).memberId) !== 'admin') throw new SyncError('forbidden_role', 403);
+    const id = typeof body.id === 'string' ? body.id : '';
+    const gone = [...this.sql.exec('DELETE FROM pairing WHERE code_hash = ? RETURNING code_hash', id)];
+    if (gone.length === 0) throw new SyncError('unknown_invite', 404);
+    return jsonResponse({ cancelled: true });
   }
 
   private async pair(request: Request): Promise<Response> {
@@ -1469,6 +1511,7 @@ async function throttled(limiter: RateLimit, request: Request, key: (ip: string)
 /** The calls that change who is in a household, rather than what it holds. */
 const MEMBERSHIP_ROUTES = new Set([
   'invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate', 'recovery_rotate', 'role',
+  'invites_cancel',
 ]);
 
 /**
