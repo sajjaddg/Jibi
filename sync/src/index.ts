@@ -270,6 +270,8 @@ function asRecords(value: unknown): PushRecord[] {
 }
 
 const IDENTITY = /^[a-f0-9]{16,64}$/;
+/** Kinds nobody owns, whose id must start with the kind (#40, #41). */
+const HOUSEHOLD_KINDS: ReadonlySet<Kind> = new Set<Kind>(['fund', 'fund_entry', 'share_split', 'settlement']);
 /** 32 random bytes in hex, made on the client: the recovery secret, and a rotation's new one. */
 const SECRET = /^[a-f0-9]{64}$/;
 
@@ -1101,9 +1103,10 @@ export class Household extends DurableObject<Env> {
           // horizon by a hostile push — against a day of honest edits nobody would see refused.
           if (record.deleted) throw new SyncError('invalid_kind', 400);
         }
-        // The common pot belongs to the household, as a shared budget does: any member who may
-        // write at all may add to it or correct it. Only the id namespace is fenced.
-        if ((record.kind === 'fund' || record.kind === 'fund_entry') && !record.id.startsWith(`${record.kind}:`)) {
+        // The common pot, who paid for whom and what was handed back belong to the household, as a
+        // shared budget does: any member who may write at all may add to them or correct them.
+        // Only the id namespace is fenced.
+        if (HOUSEHOLD_KINDS.has(record.kind) && !record.id.startsWith(`${record.kind}:`)) {
           throw new SyncError('invalid_id', 400);
         }
         const existing = [...this.sql.exec<{

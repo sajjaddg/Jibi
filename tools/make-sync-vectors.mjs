@@ -83,6 +83,14 @@ const CASES = [
     payload: { kind: 'fund_entry', fundId: '018f0000-0000-7000-8000-0000000000f1', amountRial: 20000000 },
   },
   {
+    name: 'share_split', kind: 'share_split', id: `share_split:${FAMILY_REF}`,
+    payload: { kind: 'share_split', txnRef: FAMILY_REF, parts: [{ memberId: MEMBER, amountRial: 6250001 }, { memberId: OTHER, amountRial: 6249999 }] },
+  },
+  {
+    name: 'settlement', kind: 'settlement', id: 'settlement:018f0000-0000-7000-8000-0000000000e1',
+    payload: { kind: 'settlement', fromMember: OTHER, toMember: MEMBER, amountRial: 6249999, at: AT },
+  },
+  {
     name: 'tombstone', kind: 'goal', id: 'goal:018f0000-0000-7000-8000-0000000000bb',
     payload: { v: 1, id: 'goal:018f0000-0000-7000-8000-0000000000bb', deleted: true },
   },

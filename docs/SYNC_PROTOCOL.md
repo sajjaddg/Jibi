@@ -98,6 +98,8 @@ client sends only what `GET /v1/hello` lists, keeping the rest to try later.
 | `exclusion` | `exclusion:report` | any member | `categoryIds, editedByMemberId` |
 | `fund` | `fund:<fund id>` | any member | `fundId, nameFa, ownerMemberId, createdAt` |
 | `fund_entry` | `fund_entry:<entry id>` | any member | `fundId, amountRial`, and what #40's clients add |
+| `share_split` | `share_split:<transaction ref>` | any member | `txnRef, parts[{memberId, amountRial}]` |
+| `settlement` | `settlement:<id>` | any member | `fromMember, toMember, amountRial, at` |
 | `sms` | `sms:<message SHA-256>` | vault only | set by #29 |
 | `manual_txn` | `manual_txn:m:<uuid>` | vault only | set by #29 |
 | `anchor` | `anchor:<row id>` | vault only | set by #29 |
@@ -119,11 +121,15 @@ field it does not know. Money is `Long` Rial (`amountRial`, `targetRial`); `asse
 displayed Toman figure, priced on the owner's phone.
 
 An id starting with `member:`, `txn:`, `category:`, `asset:`, `note:`, `goal:`, `exclusion:`,
-`fund:` or `fund_entry:` must carry that kind (`400 invalid_kind`), and a record of one of those
+`fund:`, `fund_entry:`, `share_split:` or `settlement:` must carry that kind (`400 invalid_kind`), and a record of one of those
 kinds must have an id that starts so (`400 invalid_id`).
 
 A fund's balance is added up from its entries on each device and stored nowhere. Paying a shared
 transaction out of a fund is an entry that names the transaction.
+
+A `share_split`'s parts add up to the transaction's amount, in `Long` Rial, with what does not
+divide going to whoever paid. The clients enforce that; the server cannot see it. Who owes whom is
+shown only from the reader's own side, and never as a table that orders members (PRODUCT.md).
 
 ### Vault kinds
 

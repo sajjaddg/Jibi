@@ -1,0 +1,11 @@
+{
+  "name": "settlement",
+  "kind": "settlement",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "settlement:018f0000-0000-7000-8000-0000000000e1",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|settlement|settlement:018f0000-0000-7000-8000-0000000000e1",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "+Vsa3bRogMN4+KeO",
+  "plaintext": "{\"kind\":\"settlement\",\"fromMember\":\"018f0000000070008000000000000002\",\"toMember\":\"018f0000000070008000000000000001\",\"amountRial\":6249999,\"at\":1795000000000}",
+  "body": "RJOjrhJpUd5tFqm4Ap11l4SGvClh/FVFhNwbanPT1wKqBE+y6TfdaiF5EOoSdBLpN+zfkgPaIVIgnAf7X/rnPTvKJooiXD7UAIrxlarG4rA2WDER9/SrlqmHsal3iTdS5xpSAU5zB3Qtk+2pFHekaKGRUN+hAtTS4l6vvCNwHww1h0XhiNOU2c+IatIK5gaSVfeltRyzioKgFldn3LhmhH18sKFz8ffeiY4x"
+}
