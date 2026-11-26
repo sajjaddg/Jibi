@@ -59,9 +59,11 @@ ledger uses. The family stays what it was, a separate place holding only what me
   re-read with a newer parser.
 - **No account.** A vault is a random id and the keys on her devices. No e-mail, number or password.
 - **What the server holds:** the random ids of the vault, its devices and its one member; a hash of
-  each device's token and of the recovery secret; the day each device joined; and for each record an
-  opaque id, its kind, scope, order, time of writing, size and ciphertext. The id of a record made
-  from a bank message is a hash of that message.
+  each device's token and of the recovery secret; when each device joined and how far it has read
+  (a number, not a time); the plan and the day it runs out; and for each record an opaque id, its
+  kind, scope, order, time of writing, size and ciphertext. Vault ids are keyed hashes, so they say
+  nothing about a bank, an asset or a message. In the **family**, the id of a record made from a
+  bank message still contains a hash of that message.
 - **What it cannot read:** amounts, balances, message text, names, merchants, categories, notes. The
   key never leaves her devices, not even wrapped in a passphrase.
 - **Recovery is the kit and nothing else** (`vault id + recovery secret + vault key`, as a QR code,
@@ -70,6 +72,30 @@ ledger uses. The family stays what it was, a separate place holding only what me
 - **Never deleted for being unused.** Only `/v1/destroy`, which she asks for with two taps, removes
   a vault; its last device cannot simply be revoked. After that, Cloudflare's own point-in-time
   recovery may hold it for up to 30 days, and the privacy text says so.
+
+## Pro (decided 2026-11-26, #16)
+
+Pro pays for what costs the service something, and **never holds her data hostage**. When it ends,
+nothing is deleted or locked: everything can still be read, edited, deleted and exported; only
+something new beyond the free limits is not taken. Reading and export are never behind it.
+
+| Server limit | Free | Pro |
+|---|---|---|
+| devices in a vault | 2 | 8 |
+| members of a family | 2 | 8 |
+| devices in a family | 4 | 16 |
+| vault size | 32 MB | 256 MB |
+| family size | 256 MB | 256 MB |
+| households one license covers | — | one vault and one family |
+
+- **No account.** A purchase becomes a signed entitlement the app checks offline, with seven days of
+  grace after it runs out. The seller never learns which household it is used in.
+- **No pressure.** No countdowns, «today only», nagging or comparison.
+- **The `lite` flavour has no Pro** and stays as it is.
+- The limits above are built and **switched off**: until there is something to buy, nothing is
+  limited beyond the hard ceilings.
+- Not decided yet: prices and periods (and product ids), the PWA's payment gateway (waits on #18),
+  refunds, and the list of what is free today and stays free.
 
 ## Brand commitment (2026-08-21 redesign)
 

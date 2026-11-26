@@ -2,7 +2,8 @@
 
 This is a pointer file. The prose lives in `DEVELOPMENT.md` (operations), `DESIGN.md`
 (visual language; ground truth is `Theme.kt`), and `PRODUCT.md` (who it's for and what is
-non-negotiable). When this file and those disagree, they win — fix the drift here.
+non-negotiable); for the server also `docs/SYNC_PROTOCOL.md` (the contract), `docs/RUNBOOK.md`
+(when it breaks) and `docs/THREAT_MODEL.md`. When this file and those disagree, they win — fix the drift here.
 
 ## What this is
 
@@ -66,6 +67,11 @@ change needs both the Gradle and the pwa blocks run.
   leaving: only `/v1/destroy`. A plan limit refuses new things and removes nothing (`PRODUCT.md`).
 - **`billing/` never learns a household id and `sync/` never learns a license.** Keep them
   apart: no shared database, no id that appears in both.
+- **Switches that are off stay off until the owner says**: `COMPACTION` (`sync/wrangler.jsonc`),
+  `PLAN_LIMITS_ENFORCED` (`sync/src/plans.ts`), `ROLES_RESTRICT_MEMBERS` (`sync/src/roles.ts`).
+  Each would make released clients fail (`DEVELOPMENT.md` § The vault, family roles and plans).
+- **A recovery secret is only ever hashed.** The server keeps its SHA-256; nothing returns or logs
+  it. `billing/` signs entitlements and `sync/` only verifies them.
 - **Never point anything at `workers.dev`.** Iran DNS-sinkholes the whole domain; the custom
   domains (`rates.muchtoman.com`, `sync.muchtoman.com`) are the product's lifeline.
 - **Persian copy is the interface**: casual register, Persian digits, words carry warnings and
@@ -87,8 +93,9 @@ unknown key fails the run, so a typo cannot quietly weaken it.
 
 ## Deploy
 
-`pnpm run deploy` in each Worker's directory. When record kinds change, deploy `sync/` before
-any app release that sends them. Android releases go by annotated tag with a Persian message
+`pnpm run deploy` in each Worker's directory — the owner's call, never an agent's. When record
+kinds change, deploy `sync/` before any app release that sends them. `worker/` needs the R2 bucket
+`muchtoman-history` and `billing/` its D1 database to exist first. Android releases go by annotated tag with a Persian message
 (that message is the in-app update sheet); `versionName` comes from the tag and `versionCode`
 from arithmetic on it (`v1.2.3` → `1020300`) — see `DEVELOPMENT.md` § Releasing.
 

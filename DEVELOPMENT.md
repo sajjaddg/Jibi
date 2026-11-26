@@ -178,7 +178,7 @@ use for `rateHistory`; `from` and `to` are optional and the window is the last 1
 in the answer says where it starts).
 
 ```json
-{ "updatedAt": 1795000000000, "asset": "usd", "step": "day", "oldest": 19687, "days": { "20783": 187000 } }
+{ "updatedAt": 1795000000000, "asset": "usd", "step": "day", "oldest": 19686, "days": { "20783": 187000 } }
 ```
 
 A day with no rate is **not in `days`** — never a zero — and `week` is the last day with a rate in
@@ -532,6 +532,7 @@ punctuation is invisible in practice.
 app/      Android app (Kotlin + Compose) — the household's sensor
 worker/   Cloudflare Worker: public prices and wallet balances
 sync/     Cloudflare Worker: the household ledger, as ciphertext it cannot read
+billing/  Cloudflare Worker: what sells Pro, and knows no household
 pwa/      the same app in the browser, for iPhone users, served by sync/ as its static assets
 ```
 
@@ -825,6 +826,31 @@ The golden corpus is `app/src/test/resources/sms/*.json` — real bank messages 
 each with the reading it must produce and a `why` explaining which phone produced that shape.
 Both parsers read it, so the Kotlin and TypeScript sides cannot drift on the cases they share.
 An absent key is not asserted; an unknown key fails the run, so a typo cannot quietly weaken it.
+
+### The vault, family roles and plans (server)
+
+What `sync/` does for each is specified in [docs/SYNC_PROTOCOL.md](docs/SYNC_PROTOCOL.md); this is
+the map. **No client uses any of it yet.**
+
+| | Where | In short |
+|---|---|---|
+| Household type | `claim {type}`, `meta.type` | `family` (default) or `personal`, the vault: one member, never left, never emptied |
+| Vault kinds | `src/kinds.ts` | accepted in a vault only; ids are HMACs so the server reads nothing from them |
+| Recovery | `/v1/recover`, `/v1/recovery/rotate` | the kit's secret enrols a device; only its hash is kept |
+| Roles | `src/roles.ts` | admin, member, read-only |
+| Plans | `src/plans.ts`, `src/entitlement.ts` | quotas, and the signed entitlement that raises them |
+
+**Three switches ship off, and turning one on is a release decision**, because released clients
+cannot yet handle what follows:
+
+| Switch | Where | Turn on when |
+|---|---|---|
+| `COMPACTION` | `sync/wrangler.jsonc` | both clients handle `410 resync_required` |
+| `PLAN_LIMITS_ENFORCED` | `sync/src/plans.ts` | there is something to buy and the clients say what was refused |
+| `ROLES_RESTRICT_MEMBERS` | `sync/src/roles.ts` | the clients' screens know about roles |
+
+`ENTITLEMENT_PUBLIC_KEYS` in `sync/wrangler.jsonc` is empty until a signing key exists, and
+`POST /v1/entitlement` answers 503 meanwhile.
 
 ### Destroying a household
 
