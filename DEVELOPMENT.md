@@ -721,6 +721,18 @@ each with the reading it must produce and a `why` explaining which phone produce
 Both parsers read it, so the Kotlin and TypeScript sides cannot drift on the cases they share.
 An absent key is not asserted; an unknown key fails the run, so a typo cannot quietly weaken it.
 
+### The household schema
+
+Each household is its own SQLite database inside a Durable Object, so a deploy cannot migrate
+them together: every object takes the steps it is missing the next time it wakes, and one nobody
+opened for months may be several behind. The steps are `MIGRATIONS` in `sync/src/migrations.ts`,
+numbered 1, 2, 3 … and recorded in `_sql_schema_migrations` in the same transaction that runs
+them. A step is never edited once it has shipped, and it only adds: no `DROP`, no rename, no
+deleted rows — the ledger is ciphertext no rescan can rebuild, which is why `durable.db` has the
+same rule. To change the schema, append a step and add the dump of the schema before it to
+`sync/test/schemas/`; `test/migrations.test.ts` wakes a household left at each dump and reads its
+ledger back over the ordinary pull.
+
 ### Deploying
 
 ```bash
