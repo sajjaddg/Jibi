@@ -100,19 +100,19 @@ client sends only what `GET /v1/hello` lists, keeping the rest to try later.
 | `fund_entry` | `fund_entry:<entry id>` | any member | `fundId, amountRial`, and what #40's clients add |
 | `share_split` | `share_split:<transaction ref>` | any member | `txnRef, parts[{memberId, amountRial}]` |
 | `settlement` | `settlement:<id>` | any member | `fromMember, toMember, amountRial, at` |
-| `sms` | `sms:<message SHA-256>` | vault only | set by #29 |
-| `manual_txn` | `manual_txn:m:<uuid>` | vault only | set by #29 |
-| `anchor` | `anchor:<row id>` | vault only | set by #29 |
-| `rule` | `rule:<rule id>` | vault only | set by #30 |
-| `decision` | `decision:<ref>:<decision kind>` | vault only | set by #30 |
-| `link` | `link:<row id>` | vault only | set by #30 |
-| `holding` | `holding:<asset id>` | vault only | set by #32 |
-| `bank` | `bank:<bank or account name>` | vault only | set by #32 |
-| `loan_person` | `loan_person:<person id>` | vault only | set by #32 |
-| `override` | `override:<asset id>` | vault only | set by #32 |
-| `day` | `day:<date>` | vault only | set by #33 |
-| `pref` | `pref:<key name>` | vault only | set by #33 |
-| `entitlement` | `entitlement:<random id>` | vault only | set by #45 |
+| `sms` | `sms:<hmac>` | vault only | set by #29 |
+| `manual_txn` | `manual_txn:<hmac>` | vault only | set by #29 |
+| `anchor` | `anchor:<hmac>` | vault only | set by #29 |
+| `rule` | `rule:<hmac>` | vault only | set by #30 |
+| `decision` | `decision:<hmac>` | vault only | set by #30 |
+| `link` | `link:<hmac>` | vault only | set by #30 |
+| `holding` | `holding:<hmac>` | vault only | set by #32 |
+| `bank` | `bank:<hmac>` | vault only | set by #32 |
+| `loan_person` | `loan_person:<hmac>` | vault only | set by #32 |
+| `override` | `override:<hmac>` | vault only | set by #32 |
+| `day` | `day:<hmac>` | vault only | set by #33 |
+| `pref` | `pref:<hmac>` | vault only | set by #33 |
+| `entitlement` | `entitlement:<hmac>` | vault only | set by #45 |
 <!-- /kinds -->
 
 Every payload also carries `kind`, which Android leaves out when it equals the class default
@@ -136,13 +136,26 @@ shown only from the reader's own side, and never as a table that orders members 
 Accepted only in a household of type `personal`. In a family each such record is refused on its
 own: the push answers `200` with `rejected: [{id, code: "kind_not_allowed"}]`, the rest of the
 batch is stored, and `accepted` counts without them. A client treats a rejected record as not
-sent.
+sent. The server requires the id of a vault-only record to start with `<kind>:` (`400
+invalid_id`), so two kinds can never land on one row. Payload shapes are set by the client issues
+that introduce them, each replacing the placeholder in its golden vector.
 
-In a vault the id of a vault-only record starts with `<kind>:` (`400 invalid_id`), so two kinds
-can never land on one row. Payload shapes are set by the client issues that introduce them, each
-replacing the placeholder in its golden vector.
+#### Vault record ids (#105)
 
-| Source on the device | Kind | Key | Merge |
+Ids are stored in the clear, so **no vault id says anything about her**: not a bank's name, an
+asset, a category, a setting or a message. Every record in a vault, `category` and `goal` among
+them, is named
+
+```
+idKey = HMAC-SHA256(vault key, "mt1.id-key")
+id    = <kind> ":" hex(HMAC-SHA256(idKey, <kind> "|" <local key>))
+```
+
+Two devices make the same id from the same row, so merging is unchanged. The local key travels
+only inside the sealed body. A tombstone names the id, so a client finds its row by computing the
+ids of the rows it holds (its publication table already keys on them).
+
+| Source on the device | Kind | Local key | Merge |
 |---|---|---|---|
 | `sms_source` | `sms` | the message's SHA-256 | append-only; delete = tombstone |
 | `manual_txn` | `manual_txn` | `m:<uuid>` | LWW |
@@ -348,9 +361,9 @@ Any member sends it to `POST /v1/entitlement`; the household keeps whichever run
 billing's database, which hashes the same nonce under `mt1.billing-slot|`). `hello` then reports
 `plan: "pro"`, and with plan quotas switched on the household has Pro's limits at once.
 
-A client keeps its entitlement in the vault as an `entitlement` record whose id is **random**: ids
-are stored in the clear, and one made from the slot nonce, or from anything billing has seen,
-would let the two databases be joined (#96). The nonce lives only inside the sealed body.
+A client keeps its entitlement in the vault as an `entitlement` record, with an id made as every
+vault id is (§ 3): ids are stored in the clear, and one made from the slot nonce alone, or from
+anything billing has seen, would let the two databases be joined (#96).
 
 The server cannot tell that one entitlement was shown to two households; billing, which signs a
 license for at most two slots, is what bounds that.

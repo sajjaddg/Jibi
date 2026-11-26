@@ -2,10 +2,10 @@
   "name": "override",
   "kind": "override",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "override:usd",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|override|override:usd",
+  "id": "override:6d9b4561401e298f7bd76db0ec31e7af6d2a63aa7c8b4fb51a52827ba77d9677",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|override|override:6d9b4561401e298f7bd76db0ec31e7af6d2a63aa7c8b4fb51a52827ba77d9677",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "x7Uz1Nz1XwSQYemL",
-  "plaintext": "{\"kind\":\"override\"}",
-  "body": "SzeG3LnT5RdD9w0eejP3ZUIXd1XUNUvpowYMaDIX+TvbXgo="
+  "plaintext": "{\"kind\":\"override\",\"key\":\"usd\"}",
+  "body": "SzeG3LnT5RdD9w0eejP3ZUIXJu3ysTnvYGt0nDeUAypIN+F88gCY5MODC7ODv3Q="
 }

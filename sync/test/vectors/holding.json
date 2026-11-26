@@ -2,10 +2,10 @@
   "name": "holding",
   "kind": "holding",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "holding:gold18",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|holding|holding:gold18",
+  "id": "holding:b5dc2c86c423ee17bcebd57ab947f807c3c0247710d79aa3c606282a7d4125c2",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|holding|holding:b5dc2c86c423ee17bcebd57ab947f807c3c0247710d79aa3c606282a7d4125c2",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "8DFaxvUDjMnCMBaY",
-  "plaintext": "{\"kind\":\"holding\"}",
-  "body": "CCDgA2v/2VQ7QwiEn5fWjZ8X8ZNqT2b6ONopnt8laQgWIw=="
+  "plaintext": "{\"kind\":\"holding\",\"key\":\"gold18\"}",
+  "body": "CCDgA2v/2VQ7QwiEn5fWjZ9G1uCHVoKmrZW6CZg1CdCKJq9SkjYV+/mHkOBi36FvDQ=="
 }

@@ -12,7 +12,7 @@
  * either client: the point is a third implementation both of them have to agree with.
  */
 
-import { createCipheriv, createHash } from 'node:crypto';
+import { createCipheriv, createHash, createHmac } from 'node:crypto';
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -102,16 +102,21 @@ const CASES = [
 ];
 
 // The vault kinds. Their payloads are not designed yet (docs/SYNC_PROTOCOL.md § 3), so each is a
-// placeholder: what these pin is the AAD and the id's namespace.
+// placeholder carrying its local key: what these pin is the AAD and how the id is made.
 const VAULT = {
-  sms: sha256Hex('a bank message'), manual_txn: 'm:018f0000-0000-7000-8000-0000000000cc', anchor: '1',
-  rule: '1', decision: `${LOCAL_REF}:category`, link: '1', holding: 'gold18', bank: 'SAMAN',
+  sms: sha256Hex('a bank message'), manual_txn: 'm:018f0000-0000-7000-8000-0000000000cc', anchor: 'anchor-row-id',
+  rule: 'rule-row-id', decision: `${LOCAL_REF}:category`, link: 'link-row-id', holding: 'gold18', bank: 'SAMAN',
   loan_person: '018f0000-0000-7000-8000-0000000000dd', override: 'usd', day: '2026-11-26',
-  // A random id, never the slot nonce: the id is stored in the clear (docs/SYNC_PROTOCOL.md).
-  pref: 'quipTone', entitlement: '018f0000-0000-7000-8000-0000000000ee',
+  pref: 'quipTone', entitlement: '00112233445566778899aabbccddeeff',
+};
+const VAULT_SCOPE = `vault:${HID}`;
+/** docs/SYNC_PROTOCOL.md § Vault record ids: ids are stored in the clear, so they say nothing. */
+const vaultId = (kind, localKey) => {
+  const idKey = createHmac('sha256', sha256(`muchtoman sync vector key|${VAULT_SCOPE}`)).update('mt1.id-key').digest();
+  return `${kind}:${createHmac('sha256', idKey).update(`${kind}|${localKey}`, 'utf8').digest('hex')}`;
 };
 for (const [kind, key] of Object.entries(VAULT)) {
-  CASES.push({ name: kind, kind, id: `${kind}:${key}`, scope: `vault:${HID}`, payload: { kind } });
+  CASES.push({ name: kind, kind, id: vaultId(kind, key), scope: VAULT_SCOPE, payload: { kind, key } });
 }
 
 function vector({ name, kind, id, payload, unbound = false, scope = SCOPE }) {

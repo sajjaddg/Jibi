@@ -2,10 +2,10 @@
   "name": "link",
   "kind": "link",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "link:1",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|link|link:1",
+  "id": "link:49e9a80849b6e2dc0e990f61b4bc6d82e98df2e2941f105957ac29c82dc675a0",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|link|link:49e9a80849b6e2dc0e990f61b4bc6d82e98df2e2941f105957ac29c82dc675a0",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "KE9UTZ6/Df8EimUn",
-  "plaintext": "{\"kind\":\"link\"}",
-  "body": "bt/U08Bg71+9fel3gpvxcflFaZ7FqIpo3bp12PQJoA=="
+  "plaintext": "{\"kind\":\"link\",\"key\":\"link-row-id\"}",
+  "body": "bt/U08Bg71+9fel3gpugAJ5s93r5ZVPHIIGsD7nUbCauCPKkTN+vtE3MJ/ZWhxovzT4t"
 }

@@ -50,6 +50,19 @@ describe('the golden vectors', () => {
     expect(base64(await crypto.subtle.encrypt(gcm(v), key, new TextEncoder().encode(v.plaintext)))).toBe(v.body);
   });
 
+  it.each(vectors.filter((v) => isVaultOnly(v.kind as Kind)))('$name: is named by an HMAC that says nothing of its key', async (v) => {
+    const hmac = async (key: ArrayBuffer | Uint8Array<ArrayBuffer>, text: string) => crypto.subtle.sign(
+      'HMAC',
+      await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']),
+      new TextEncoder().encode(text),
+    );
+    const { key: localKey } = JSON.parse(v.plaintext) as { key: string };
+    const idKey = await hmac(bytes(v.key), 'mt1.id-key');
+    const digest = [...new Uint8Array(await hmac(idKey, `${v.kind}|${localKey}`))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    expect(v.id).toBe(`${v.kind}:${digest}`);
+    expect(v.id).not.toContain(localKey);
+  });
+
   it.each(vectors.filter((v) => v.aad !== null))('$name: does not open under another id or with no AAD', async (v) => {
     const key = await keyOf(v);
     for (const aad of [`${v.aad}x`, null]) {

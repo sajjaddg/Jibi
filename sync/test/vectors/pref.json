@@ -2,10 +2,10 @@
   "name": "pref",
   "kind": "pref",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "pref:quipTone",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|pref|pref:quipTone",
+  "id": "pref:f00c49e6949d87229491a47fa4ec8d4c234cad69d54b2ab47b9e12723e2cf419",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|pref|pref:f00c49e6949d87229491a47fa4ec8d4c234cad69d54b2ab47b9e12723e2cf419",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "AgLk10NKc11zw15+",
-  "plaintext": "{\"kind\":\"pref\"}",
-  "body": "3/Uz3f3PSd6u46PmqQq8+p7MQfLjMpvceZRcSZdFoQ=="
+  "plaintext": "{\"kind\":\"pref\",\"key\":\"quipTone\"}",
+  "body": "3/Uz3f3PSd6u46PmqQrt8UCJfLYe3/JN+b6axyu2xEAIgyfrViPV5LPwvSPCZ/uU"
 }

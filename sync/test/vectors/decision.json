@@ -2,10 +2,10 @@
   "name": "decision",
   "kind": "decision",
   "scope": "vault:0123456789abcdef0123456789abcdef",
-  "id": "decision:s:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7:0:category",
-  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|decision|decision:s:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7:0:category",
+  "id": "decision:c518b04f3c642fe451499b253a7f289dfc41e5e0603301c29fe99ea268b30597",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|decision|decision:c518b04f3c642fe451499b253a7f289dfc41e5e0603301c29fe99ea268b30597",
   "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
   "nonce": "e7GhGEwpl59Xiu51",
-  "plaintext": "{\"kind\":\"decision\"}",
-  "body": "4ZQAztzsrJ64HCAptlVFW/qaHTV6EAl06lPqwkkwMg1Wkbg="
+  "plaintext": "{\"kind\":\"decision\",\"key\":\"s:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7:0:category\"}",
+  "body": "4ZQAztzsrJ64HCAptlVFW/qaTAx8wUIxOFytNHpGTR8bNbB3N9nq04kQABg2mnEgE7kLeo5Iq3mhGcA5GcEL975edssFgRakmFY4XsgimTq5stZfioPScz8vGYxukBidy/RSNhFnVPtzGTdC+eesbwwKptQI3jFN9Q=="
 }
