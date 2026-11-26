@@ -1,5 +1,6 @@
 import { abortAllDurableObjects, env, runDurableObjectAlarm, runInDurableObject, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
+import config from '../wrangler.jsonc?raw';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv extends Env {}
@@ -270,5 +271,49 @@ describe('the daily alarm', () => {
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await inside(hid, (sql) => [...sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\'")])).toEqual([]);
     expect(await inside(hid, (_sql, state) => state.storage.getAlarm())).toBeNull();
+  });
+});
+
+describe('the compaction switch', () => {
+  /** The object as production's config makes it: the switch is read from the env on every use. */
+  const switchOff = (hid: string) => runInDurableObject(env.HOUSEHOLD.getByName(hid), async (instance) => {
+    Object.assign(instance, { env: { ...env, COMPACTION: 'off' } });
+  });
+
+  it('is off in both environments the Worker is deployed to', () => {
+    expect(config.match(/"COMPACTION":\s*"[^"]*"/g)).toEqual(['"COMPACTION": "off"', '"COMPACTION": "off"']);
+  });
+
+  it('keeps every tombstone and sets no alarm while it is off, so no device is told to start over', async () => {
+    const hid = freshHid();
+    await switchOff(hid);
+    const a = await claim(hid);
+    const stub = env.HOUSEHOLD.getByName(a.hid);
+    const alarm = () => runInDurableObject(stub, async (_i, state) => state.storage.getAlarm());
+    expect(await alarm()).toBeNull();
+
+    // The case that is purged with the switch on: read by every device and long past ninety days.
+    await buryOne(a, 299 * DAY);
+    await pull(a, 'since=3');
+    // An alarm left from while it was on runs once, purges nothing and is not set again.
+    await runInDurableObject(stub, async (_i, state) => state.storage.setAlarm(Date.now() + 1000));
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await inside(a.hid, ids)).toEqual(['r1', 'r2']);
+    expect(await alarm()).toBeNull();
+
+    // A client that has never heard of `live=1` pulls from zero and is answered as before.
+    const fromZero = await pull(a, 'since=0');
+    expect(fromZero.status).toBe(200);
+    expect(fromZero.body.horizon).toBe(0);
+    expect(fromZero.body.records.map((r) => r.id)).toEqual(['r1', 'r2']);
+  });
+
+  it('turned off again, still tells a device behind what was already removed', async () => {
+    const a = await claim(freshHid());
+    await buryOne(a, 299 * DAY);
+    await pull(a, 'since=3');
+    await runDurableObjectAlarm(env.HOUSEHOLD.getByName(a.hid));
+    await switchOff(a.hid);
+    expect((await pull(a, 'since=1')).status).toBe(410);
   });
 });
