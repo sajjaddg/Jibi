@@ -96,6 +96,19 @@ client sends only what `GET /v1/hello` lists, keeping the rest to try later.
 | `note` | `note:<sha256 of family ref>` | any member | `target, note, editedByMemberId` |
 | `goal` | `goal:<goal id>` | any member | `goalId, nameFa, targetRial, goalKind, categoryId, period, startsOn, endsOn, createdAt, ownerMemberId, editedByMemberId` |
 | `exclusion` | `exclusion:report` | any member | `categoryIds, editedByMemberId` |
+| `sms` | `sms:<message SHA-256>` | vault only | set by #29 |
+| `manual_txn` | `manual_txn:m:<uuid>` | vault only | set by #29 |
+| `anchor` | `anchor:<row id>` | vault only | set by #29 |
+| `rule` | `rule:<rule id>` | vault only | set by #30 |
+| `decision` | `decision:<ref>:<decision kind>` | vault only | set by #30 |
+| `link` | `link:<row id>` | vault only | set by #30 |
+| `holding` | `holding:<asset id>` | vault only | set by #32 |
+| `bank` | `bank:<bank or account name>` | vault only | set by #32 |
+| `loan_person` | `loan_person:<person id>` | vault only | set by #32 |
+| `override` | `override:<asset id>` | vault only | set by #32 |
+| `day` | `day:<date>` | vault only | set by #33 |
+| `pref` | `pref:<key name>` | vault only | set by #33 |
+| `entitlement` | `entitlement:<slot nonce>` | vault only | set by #45 |
 <!-- /kinds -->
 
 Every payload also carries `kind`, which Android leaves out when it equals the class default
@@ -106,11 +119,16 @@ displayed Toman figure, priced on the owner's phone.
 An id starting with `member:`, `txn:`, `category:`, `asset:`, `note:`, `goal:` or `exclusion:`
 must carry that kind (`400 invalid_kind`).
 
-### Vault kinds (planned, #22)
+### Vault kinds
 
-A vault is a household of type `personal` (#20). These kinds will be accepted only there. The id
-is `<kind>:<key>`, so two kinds can never land on one row. Payload shapes are set by the client
-issues that introduce them (#29–#33), each with its golden vector.
+Accepted only in a household of type `personal`. In a family each such record is refused on its
+own: the push answers `200` with `rejected: [{id, code: "kind_not_allowed"}]`, the rest of the
+batch is stored, and `accepted` counts without them. A client treats a rejected record as not
+sent.
+
+In a vault the id of a vault-only record starts with `<kind>:` (`400 invalid_id`), so two kinds
+can never land on one row. Payload shapes are set by the client issues that introduce them, each
+replacing the placeholder in its golden vector.
 
 | Source on the device | Kind | Key | Merge |
 |---|---|---|---|
@@ -246,6 +264,7 @@ Last write wins, on the server and again on each client.
 | `invalid_nonce` | 400 | nonce empty or too long |
 | `invalid_identity` | 400 | `identity` without two ids |
 | `invalid_type` | 400 | `claim` with a type that is neither `family` nor `personal` |
+| `kind_not_allowed` | 200, per record | a vault-only kind pushed to a family, listed in `rejected` |
 | `invalid_since` | 400 | |
 | `invalid_limit` | 400 | |
 | `invalid_secret` | 400 | a rotation secret that is not 64 hex |
@@ -296,7 +315,9 @@ Clients send `X-MuchToman-Client: <version> <platform>`.
   "nonce": "<base64>", "plaintext": "…", "body": "<base64>" }
 ```
 
-`aad` is `null` for the unbound legacy seal. A reader must open `body` to `plaintext`, and sealing
+`aad` is `null` for the unbound legacy seal. The vault kinds' vectors carry a placeholder payload
+(`{"kind": …}`) until their shapes exist; they pin the seal and the id, nothing about the content.
+A reader must open `body` to `plaintext`, and sealing
 `plaintext` with the same key, nonce and AAD must give `body` byte for byte. An unknown field fails
 the run, as in the SMS corpus. There is one vector for every accepted kind. The keys are public
 test keys and the nonces are fixed, which no real record may ever be.

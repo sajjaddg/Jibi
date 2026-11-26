@@ -149,7 +149,7 @@ describe('the list of kinds', () => {
     const token = await claim(hid);
     const pending = [
       { id: 'note:one', scope: 'family:x', updatedAt: 1000, device: 'p', nonce: 'nn', body: 'YQ==', kind: 'note' },
-      { id: 'vaultthing:1', scope: 'family:x', updatedAt: 1000, device: 'p', nonce: 'nn', body: 'Yg==', kind: 'sms' },
+      { id: 'vaultthing:1', scope: 'family:x', updatedAt: 1000, device: 'p', nonce: 'nn', body: 'Yg==', kind: 'sparkle' },
       { id: 'goal:two', scope: 'family:x', updatedAt: 1000, device: 'p', nonce: 'nn', body: 'Yw==', kind: 'goal' },
     ];
     // Without the list: the whole batch is refused, and a note and a goal that were fine go with it.

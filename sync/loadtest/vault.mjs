@@ -5,10 +5,9 @@
  * sizes are what the load depends on. Seeded, so two runs push the same vault and a change in the
  * numbers is the server's, not the generator's.
  *
- * The shapes follow docs/backend-plan.md § 3.2 (`sms`, `decision`, `goal`, `day`), carried today by
- * kinds the server already accepts: B1.4's vault kinds do not exist yet, and an unknown kind would
- * 400 the batch. The ids and body sizes are what the real kinds will have, which is what a
- * storage and bandwidth measurement needs.
+ * The shapes follow docs/backend-plan.md § 3.2 (`sms`, `decision`, `goal`, `day`), sent as
+ * `legacy` records so that one generator measures a household of either type. The ids and body
+ * sizes are what the real kinds have, which is what a storage and bandwidth measurement needs.
  */
 
 const DAY = 24 * 60 * 60 * 1000;

@@ -1,0 +1,11 @@
+{
+  "name": "sms",
+  "kind": "sms",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "sms:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|sms|sms:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "ZFsgaInnbD8Qbj2E",
+  "plaintext": "{\"kind\":\"sms\"}",
+  "body": "vdrunufCO+aakhQVr1DsyRJmRpphQyq5Ed5sx819"
+}

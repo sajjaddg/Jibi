@@ -1,0 +1,11 @@
+{
+  "name": "override",
+  "kind": "override",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "override:usd",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|override|override:usd",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "x7Uz1Nz1XwSQYemL",
+  "plaintext": "{\"kind\":\"override\"}",
+  "body": "SzeG3LnT5RdD9w0eejP3ZUIXd1XUNUvpowYMaDIX+TvbXgo="
+}

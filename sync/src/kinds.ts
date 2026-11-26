@@ -9,14 +9,32 @@
  *
  * A new kind is one line here, shipped (and deployed) before any client sends it.
  */
-export const KINDS = [
+/** Accepted in any household. `category` and `goal` are whole in a vault, projections in a family. */
+export const SHARED_KINDS = [
   'legacy', 'member', 'transaction', 'category', 'asset', 'note', 'goal', 'exclusion',
 ] as const;
+
+/**
+ * Accepted in a vault only (`meta.type = personal`): her own whole state, raw bank messages among
+ * it. A family refuses them one record at a time, so no bug in a client can put a message where
+ * another member could be sent it (PRODUCT.md: the vault and the family never mix). Their ids are
+ * `<kind>:<key>`, because the id alone is the table's key and two kinds must not land on one row.
+ */
+export const VAULT_KINDS = [
+  'sms', 'manual_txn', 'anchor', 'rule', 'decision', 'link', 'holding', 'bank', 'loan_person',
+  'override', 'day', 'pref', 'entitlement',
+] as const;
+
+export const KINDS = [...SHARED_KINDS, ...VAULT_KINDS] as const;
 
 export type Kind = (typeof KINDS)[number];
 
 export function isKind(value: string): value is Kind {
   return (KINDS as readonly string[]).includes(value);
+}
+
+export function isVaultOnly(kind: Kind): boolean {
+  return (VAULT_KINDS as readonly string[]).includes(kind);
 }
 
 /**

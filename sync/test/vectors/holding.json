@@ -1,0 +1,11 @@
+{
+  "name": "holding",
+  "kind": "holding",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "holding:gold18",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|holding|holding:gold18",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "8DFaxvUDjMnCMBaY",
+  "plaintext": "{\"kind\":\"holding\"}",
+  "body": "CCDgA2v/2VQ7QwiEn5fWjZ8X8ZNqT2b6ONopnt8laQgWIw=="
+}
