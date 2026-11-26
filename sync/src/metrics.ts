@@ -18,7 +18,7 @@ export const ERROR_CODES = [
   'invalid_code', 'invalid_device', 'invalid_hid', 'invalid_id', 'invalid_identity', 'invalid_kind',
   'invalid_limit', 'invalid_member', 'invalid_member_tombstone', 'invalid_nonce', 'invalid_record',
   'invalid_recovery', 'invalid_request', 'invalid_scope', 'invalid_secret', 'invalid_since', 'invalid_type',
-  'invalid_updated_at', 'kind_not_allowed', 'last_device', 'member_exists', 'not_recoverable',
+  'invalid_updated_at', 'kind_not_allowed', 'last_device', 'member_exists', 'not_recoverable', 'quota_exceeded',
   'unknown_device', 'members_remain', 'rate_limited', 'resync_required', 'too_many_devices',
   'too_many_records', 'unauthorised', 'unavailable', 'unknown_member', 'unsupported_media_type',
 ] as const;

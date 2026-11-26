@@ -254,6 +254,8 @@ Last write wins, on the server and again on each client.
 
 ## 7. Limits
 
+The hard ceilings, which hold for every household:
+
 | | |
 |---|---|
 | live records | 120,000 (`409 household_full`) |
@@ -261,6 +263,28 @@ Last write wins, on the server and again on each client.
 | ciphertext bytes | 256 MiB; a shrinking edit or a delete is always accepted |
 | devices | 16 |
 | per address, a minute | 1200 calls; 5 claims; 30 membership changes per household (`429`, `retry-after: 60`) |
+
+### Plan quotas (`sync/src/plans.ts`)
+
+**Switched off**: while `PLAN_LIMITS_ENFORCED` is false nothing below applies, and `hello` reports
+the hard ceilings as the quota.
+
+| | vault free | vault pro | family free | family pro |
+|---|---|---|---|---|
+| devices | 2 | 8 | 4 | 16 |
+| members | 1 | 1 | 2 | 8 |
+| ciphertext | 32 MiB | 256 MiB | 256 MiB | 256 MiB |
+
+Pro counts until 7 days after the entitlement's `exp`, worked out each time and never written.
+
+Over a limit the household takes nothing **new**; it loses nothing. Every edit that does not grow,
+and every delete, is accepted, and no device or member is removed.
+
+- `invite`, `pair`: `409 {code: "quota_exceeded", what: "devices" | "members", limit, used}`.
+- `recover` without `revoke`: the same, with `devices: [{id, addedAt}]`. With `revoke` it swaps,
+  which is always allowed.
+- push: the record that would grow past `bytes` is listed in `rejected` as `{id, code:
+  "quota_exceeded", what: "bytes", limit, used}`; the answer is `200` and the rest is stored.
 
 ## 8. Errors
 
@@ -304,6 +328,7 @@ Last write wins, on the server and again on each client.
 | `too_many_devices` | 409 | |
 | `last_device` | 409 | revoking a vault's only device |
 | `household_full` | 409 | § 7 |
+| `quota_exceeded` | 409, or 200 per record | § 7, plan quotas |
 | `members_remain` | 409 | `destroy` while others are members |
 | `resync_required` | 410 | § 5 |
 | `body_too_large` | 413 | |

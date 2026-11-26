@@ -24,6 +24,9 @@ import { DurableObject } from 'cloudflare:workers';
 import { isKind, isVaultOnly, KINDS, reservedKind, type Kind } from './kinds';
 import { runMigrations } from './migrations';
 import { errorCodeOf, measure, routeOf } from './metrics';
+import {
+  effectivePlan, PLAN_LIMITS_ENFORCED, QUOTAS, type HouseholdType, type Plan, type Quota, type StoredPlan,
+} from './plans';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -92,10 +95,15 @@ const PAIRING_TTL_MS = 10 * 60 * 1000;
 const MAX_PAIRING_CODES = MAX_DEVICES;
 
 class SyncError extends Error {
-  constructor(readonly code: string, readonly status: number) {
+  constructor(readonly code: string, readonly status: number, readonly details?: Record<string, unknown>) {
     super(code);
   }
 }
+
+/** Which of a plan's limits was met, what it is and how much is used. */
+interface OverQuota { what: 'devices' | 'members' | 'bytes'; limit: number; used: number }
+
+const quotaExceeded = (over: OverQuota) => new SyncError('quota_exceeded', 409, { ...over });
 
 class BodyTooLargeError extends Error {}
 
@@ -298,12 +306,6 @@ function grown(
   };
 }
 
-/**
- * `personal` is her vault: one member, her own devices, her whole state. `family` is the shared
- * ledger, and what every household was before there were two.
- */
-export type HouseholdType = 'personal' | 'family';
-
 /** The part of `/v1/hello` that needs no token: the protocol and what this server accepts. */
 function helloAnonymous(): { protocol: number; kinds: readonly Kind[] } {
   return { protocol: PROTOCOL, kinds: KINDS };
@@ -360,6 +362,42 @@ export class Household extends DurableObject<Env> {
    */
   private compacting(): boolean {
     return String(this.env.COMPACTION) === 'on';
+  }
+
+  /** `PLAN_LIMITS_ENFORCED` (plans.ts), as a method so that a test can run the object with it on. */
+  private metered(): boolean {
+    return PLAN_LIMITS_ENFORCED;
+  }
+
+  private plan(now: number): Plan {
+    const row = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'plan')][0];
+    return effectivePlan(row ? JSON.parse(row.v) as StoredPlan : null, now);
+  }
+
+  /** What this household may hold now: its plan's table, or only the hard ceilings. */
+  private quota(now: number): Quota {
+    if (!this.metered()) return { devices: MAX_DEVICES, members: MAX_DEVICES, bytes: MAX_STORED_BYTES };
+    return QUOTAS[this.type()][this.plan(now)];
+  }
+
+  private used(): { devices: number; members: number } {
+    const rows = [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')];
+    return { devices: rows.length, members: new Set(rows.map(memberOf)).size };
+  }
+
+  /**
+   * Room for one more device, or the limit that has none. A newcomer to a family is always a new
+   * member as well (`pair` refuses an id that has been anyone), so a family is full on either
+   * count; a vault only has devices to run out of.
+   */
+  private noRoomToJoin(now: number): OverQuota | null {
+    const quota = this.quota(now);
+    const used = this.used();
+    if (used.devices >= quota.devices) return { what: 'devices', limit: quota.devices, used: used.devices };
+    if (this.type() === 'family' && used.members >= quota.members) {
+      return { what: 'members', limit: quota.members, used: used.members };
+    }
+    return null;
   }
 
   /**
@@ -439,8 +477,14 @@ export class Household extends DurableObject<Env> {
     const revoke = typeof body.revoke === 'string' ? body.revoke : '';
     if (revoke && !devices.some((d) => d.id === revoke)) throw new SyncError('unknown_device', 404);
     if (devices.some((d) => d.id === deviceId && d.id !== revoke)) throw new SyncError('identity_exists', 409);
-    if (!revoke && devices.length >= MAX_DEVICES) {
-      return jsonResponse({ code: 'too_many_devices', devices: devices.map((d) => ({ id: d.id, addedAt: d.added_at })) }, 409);
+    // A swap adds nobody, so it is allowed at any limit — even over it, after a plan has lapsed.
+    if (!revoke) {
+      const listed = devices.map((d) => ({ id: d.id, addedAt: d.added_at }));
+      if (devices.length >= MAX_DEVICES) return jsonResponse({ code: 'too_many_devices', devices: listed }, 409);
+      const limit = this.quota(Date.now()).devices;
+      if (devices.length >= limit) {
+        return jsonResponse({ code: 'quota_exceeded', what: 'devices', limit, used: devices.length, devices: listed }, 409);
+      }
     }
     const scopes = [...new Set(devices.flatMap((d) => JSON.parse(d.scopes) as string[]))];
     const memberId = this.primaryMember();
@@ -552,7 +596,7 @@ export class Household extends DurableObject<Env> {
       return textResponse('not found\n', 404);
     } catch (error) {
       if (error instanceof BodyTooLargeError) return jsonResponse({ code: 'body_too_large' }, 413);
-      if (error instanceof SyncError) return jsonResponse({ code: error.code }, error.status);
+      if (error instanceof SyncError) return jsonResponse({ code: error.code, ...error.details }, error.status);
       // The record body never appears here: it is ciphertext and nothing in this file decodes it.
       console.error(JSON.stringify({ message: 'household failed', error: errorMessage(error) }));
       return jsonResponse({ code: 'internal' }, 500);
@@ -618,6 +662,10 @@ export class Household extends DurableObject<Env> {
       ? (body.scopes as string[]).filter((s) => auth.scopes.includes(s))
       : auth.scopes;
     if (scopes.length === 0) throw new SyncError('invalid_scope', 400);
+    // A code that could not be redeemed is better refused while she is the one holding the phone.
+    // Only for a plan's limit: at the hard cap `pair` says so, as it always has.
+    const full = this.metered() ? this.noRoomToJoin(Date.now()) : null;
+    if (full) throw quotaExceeded(full);
     this.sql.exec('DELETE FROM pairing WHERE expires_at < ?', Date.now());
     this.sql.exec(
       'DELETE FROM pairing WHERE rowid NOT IN (SELECT rowid FROM pairing ORDER BY rowid DESC LIMIT ?)',
@@ -667,6 +715,9 @@ export class Household extends DurableObject<Env> {
     }
     const devices = [...this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM device')][0];
     if (devices && devices.n >= MAX_DEVICES) throw new SyncError('too_many_devices', 409);
+    // Checked again here: the plan may have lapsed, or others joined, since the code was shown.
+    const full = this.noRoomToJoin(now);
+    if (full) throw quotaExceeded(full);
     this.sql.exec(
       'INSERT INTO device (id, member_id, identity_locked, token_hash, scopes, added_at, last_seen) ' +
         'VALUES (?, ?, 1, ?, ?, ?, ?)',
@@ -743,17 +794,14 @@ export class Household extends DurableObject<Env> {
    */
   private async hello(request: Request): Promise<Response> {
     this.authorise(await this.credential(request));
-    const counts = this.counts();
-    const rows = [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')];
+    const now = Date.now();
     return jsonResponse({
       ...helloAnonymous(),
       type: this.type(),
-      // Nobody has a plan until B1.6 gives them one, so everyone is on the free one.
-      plan: 'free',
-      // The ceilings in force today are the hard caps; plan quotas replace them in B1.6. There
-      // is no cap on members separate from the one on devices.
-      quota: { devices: MAX_DEVICES, members: MAX_DEVICES, bytes: MAX_STORED_BYTES },
-      used: { devices: rows.length, members: new Set(rows.map(memberOf)).size, bytes: counts.bytes },
+      plan: this.plan(now),
+      // What is in force: the hard ceilings until plan limits are switched on.
+      quota: this.quota(now),
+      used: { ...this.used(), bytes: this.counts().bytes },
       minClient: MIN_CLIENT,
     });
   }
@@ -949,9 +997,10 @@ export class Household extends DurableObject<Env> {
     const maxStamp = Date.now() + MAX_STAMP_SKEW_MS;
     const clamped: { id: string; updatedAt: number }[] = [];
     // Refused one at a time, unlike everything else here: the rest of the batch is her ledger and
-    // must not wait on a record that will never be taken.
-    const rejected: { id: string; code: string }[] = [];
+    // must not wait on a record that will never be taken. So is one the plan has no room for.
+    const rejected: ({ id: string; code: string } & Partial<OverQuota>)[] = [];
     const vault = this.type() === 'personal';
+    const quota = this.quota(Date.now());
     try {
       for (const record of records) {
         if (!auth.scopes.includes(record.scope)) throw new SyncError('forbidden_scope', 403);
@@ -1047,6 +1096,15 @@ export class Household extends DurableObject<Env> {
             (existing.updated_at === storedAt && existing.author_member >= auth.memberId))
         ) {
           continue;
+        }
+        // The plan's size: only something that grows the household can be refused, and a delete
+        // never is. The hard ceilings are `grown`'s, below, for every household alike.
+        if (!record.deleted && this.metered()) {
+          const added = new TextEncoder().encode(record.body).byteLength - (existing?.size ?? 0);
+          if (added > 0 && counts.bytes + added > quota.bytes) {
+            rejected.push({ id: record.id, code: 'quota_exceeded', what: 'bytes', limit: quota.bytes, used: counts.bytes });
+            continue;
+          }
         }
         const next = grown(counts, existing, record.deleted === true, record.body);
         seq += 1;
@@ -1524,7 +1582,7 @@ const handler = {
       return new Response(asset.body, { status: asset.status, headers });
     } catch (error) {
       if (error instanceof BodyTooLargeError) return jsonResponse({ code: 'body_too_large' }, 413);
-      if (error instanceof SyncError) return jsonResponse({ code: error.code }, error.status);
+      if (error instanceof SyncError) return jsonResponse({ code: error.code, ...error.details }, error.status);
       console.error(JSON.stringify({ message: 'sync failed', error: errorMessage(error) }));
       return jsonResponse({ code: 'internal' }, 500);
     }
