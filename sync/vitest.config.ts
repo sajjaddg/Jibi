@@ -16,7 +16,8 @@ export default defineConfig({
       wrangler: { configPath: './wrangler.jsonc' },
       // Compaction ships switched off (wrangler.jsonc); the tests run it, and
       // test/compaction.test.ts switches it back off to check what «off» does.
-      miniflare: { bindings: { COMPACTION: 'on' } },
+      // CHURN=full runs test/churn.test.ts at the volume docs/backend-plan.md reports.
+      miniflare: { bindings: { COMPACTION: 'on', CHURN: process.env.CHURN ?? '' } },
     }),
   ],
 });

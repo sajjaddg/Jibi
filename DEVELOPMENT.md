@@ -335,7 +335,12 @@ from zero and prints bytes, request counts, a «Fast 3G» model of how long a ne
 and a cost estimate at 1k, 10k and 100k vaults. It refuses any address that is not loopback over
 http, with no override: a run against staging is a decision for the B5.4 report, not a default.
 Bytes, requests and row counts carry over to Cloudflare; wall times under `wrangler dev` do not,
-and the object's CPU time cannot be seen there at all.
+and the object's CPU time cannot be seen there. `--cpu-pid=<workerd pids>` samples the whole
+runtime's CPU instead, which is the figure in docs/backend-plan.md § ۶.
+
+`test/churn.test.ts` is the other half: three years of edits and deletions with compaction on a
+simulated clock, quick and small inside `pnpm run check`, at full volume with `CHURN=full` (the
+file says how).
 
 ## Releasing
 
