@@ -874,7 +874,8 @@ ledger back over the ordinary pull.
 ### Deploying
 
 When something is broken rather than being shipped — what to watch, rollback, point-in-time
-restore, key rotation — read [docs/RUNBOOK.md](docs/RUNBOOK.md).
+restore, key rotation — read [docs/RUNBOOK.md](docs/RUNBOOK.md). What the server can see, who
+could do what, and the open security issues are in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ```bash
 cd sync && pnpm run deploy        # builds ../pwa first; refuses uncommitted changes in sync/ or pwa/
