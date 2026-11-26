@@ -25,7 +25,7 @@ A household has a **type**, set at `claim` and never changed:
 A **device** holds a token `<hid>.<secret>` (secret: 64 hex), sent as `Authorization: Bearer …`
 or `X-MuchToman-Token`. The server keeps only `sha256(secret)`. A device belongs to a **member**.
 
-A **scope** is a keyed stream, today `family:<hid>`, with its own 32-byte AES-GCM key that only
+A **scope** is a keyed stream — `family:<hid>`, and for a vault `vault:<hid>` — with its own 32-byte AES-GCM key that only
 devices have. The server also keeps each token's list of scopes, as a second lock.
 
 Every POST carries `Content-Type: application/json`; anything else is `415`.
@@ -194,7 +194,7 @@ ids of the rows it holds (its publication table already keys on them).
 | `POST /v1/identity` | `{memberId, deviceId}` | the same — one rebinding for a token older than identity |
 | `GET /v1/hello` | — | without a token `{protocol, kinds}`; with one, also `{type, plan, quota, used, minClient}` |
 | `GET /v1/sync?since=&limit=&live=` | — | § 5 |
-| `POST /v1/sync` | `{records}` (≤ 500, ≤ 2 MiB) | `{seq, accepted, clamped: [{id, updatedAt}]}` |
+| `POST /v1/sync` | `{records}` (≤ 500, ≤ 2 MiB) | `{seq, accepted, clamped: [{id, updatedAt}], rejected?}` |
 | `POST /v1/remove` | `{member, record}` — the member's tombstone | `{revoked, seq, clamped}` |
 | `POST /v1/leave` | `{record}` — the caller's tombstone | `{revoked, seq, clamped}` |
 | `POST /v1/destroy` | `{}` | `{destroyed: true}` |
@@ -228,6 +228,9 @@ with `revoke: <id>` swaps that device for the new one. `revoke` may be sent even
 `recover` is limited to 5 a minute per address and per household.
 
 ### Push
+
+`rejected` is there only when something was refused on its own (`kind_not_allowed`, `read_only`,
+`quota_exceeded`); `accepted` counts without those, and a client treats them as not sent.
 
 Shape is checked for the whole batch first: one bad record is a `4xx` and nothing is written.
 Ownership and size are checked record by record as they are written, so on such an error the
@@ -450,7 +453,8 @@ Clients send `X-MuchToman-Client: <version> <platform>`.
 ```
 
 `aad` is `null` for the unbound legacy seal. The vault kinds' vectors carry a placeholder payload
-(`{"kind": …}`) until their shapes exist; they pin the seal and the id, nothing about the content.
+(`{"kind": …, "key": <local key>}`) until their shapes exist; they pin the seal and how the id is
+made, nothing about the content.
 A reader must open `body` to `plaintext`, and sealing
 `plaintext` with the same key, nonce and AAD must give `body` byte for byte. An unknown field fails
 the run, as in the SMS corpus. There is one vector for every accepted kind. The keys are public

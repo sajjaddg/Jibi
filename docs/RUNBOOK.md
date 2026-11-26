@@ -9,6 +9,8 @@ read from its documentation on 2026-11-26; check again before relying on a limit
 | `muchtoman-rates` | `worker/` | rates.muchtoman.com | R2 bucket `muchtoman-history` (public prices) |
 | `muchtoman-sync` | `sync/` | sync.muchtoman.com | one SQLite Durable Object per household (ciphertext) |
 | `muchtoman-sync-staging` | `sync/` `env.staging` | staging-sync.muchtoman.com | its own households |
+| `muchtoman-billing` (not deployed) | `billing/` | pay.muchtoman.com | D1: licenses and redemptions |
+| `muchtoman-billing-staging` (not deployed) | `billing/` `env.staging` | staging-pay.muchtoman.com | its own D1 |
 
 Never answer an incident by pointing anything at `workers.dev`: Iran sinkholes the whole domain.
 
@@ -57,7 +59,7 @@ missing day in `/history` (`history point not recorded`).
 
 Server before client, always, for anything a client starts to send. And between the servers:
 
-1. `billing/` (when it exists)
+1. `billing/`
 2. `worker/`
 3. `sync/` (it builds and serves the PWA, and proxies `worker/`)
 4. Android tag.
@@ -87,8 +89,11 @@ Before rolling `sync/` back, check each of these:
   anything not on that list, do not roll back; fix forward.
 - **Compaction.** Never roll back to a commit between `a906d9c` and `cadfac3` (compaction without
   its switch): it purges tombstones, and released clients cannot handle what follows.
-- **Schema.** Safe. `sync/src/migrations.ts` only adds, and older code ignores columns and steps it
-  does not know.
+- **Schema.** Safe to run: `sync/src/migrations.ts` only adds, and older code ignores columns and
+  steps it does not know. What it also ignores is what they mean:
+- **Vaults.** Once any client has made one, never roll back past #79 (`1c17f3b`). Older code takes
+  a vault for a family: it would wipe it when its last device leaves, and refuses its kinds.
+- **Roles.** Rolling back past #85 stops read-only being enforced.
 - **PWA.** The PWA ships inside this Worker, so it goes back too. Its IndexedDB does not: check the
   older PWA can still open what the newer one wrote.
 
@@ -204,14 +209,14 @@ R2 keeps no versions here. A month object that is wrong is edited by hand
 be parsed is never overwritten by the cron, which fails instead and says so. Losing the bucket
 loses chart history and nothing of anyone's.
 
-## D1 (billing, when it exists)
+## D1 (billing)
 
 Time Travel reaches back 30 days on the paid plan. A restore overwrites the database in place:
 
 ```bash
 cd billing
-pnpm exec wrangler d1 time-travel info <database> --timestamp="2026-11-26T09:00:00+00:00"
-pnpm exec wrangler d1 time-travel restore <database> --bookmark=<bookmark>
+pnpm exec wrangler d1 time-travel info muchtoman-billing --timestamp="2026-11-26T09:00:00+00:00"
+pnpm exec wrangler d1 time-travel restore muchtoman-billing --bookmark=<bookmark>
 ```
 
 It prints the bookmark that undoes it; write it down. Purchases recorded after the restore point
@@ -220,12 +225,15 @@ gateway's own records before and after.
 
 ## Rotating the entitlement signing key
 
-For when `billing/` and `ENTITLEMENT_SIGNING_KEY` exist. Every verifier (app, PWA, `sync/`) holds
-a **list** of public keys, so two can be valid at once:
+No signing key exists yet. Every verifier (app, PWA, `sync/`) holds a **list** of public keys, so
+two can be valid at once. The same steps make the first one.
 
-1. Generate the new Ed25519 pair offline.
-2. Add the new **public** key beside the old one in `sync/`, the app and the PWA. Deploy `sync/`,
-   release the clients.
+1. Generate the new Ed25519 pair offline. `billing/` takes the private key as PKCS#8, base64 or
+   PEM (`openssl genpkey -algorithm ed25519`); verifiers take the raw 32-byte public key in
+   base64url (`openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64 | tr '+/' '-_' | tr -d '='`).
+2. Add the new **public** key beside the old one in `ENTITLEMENT_PUBLIC_KEYS`
+   (`sync/wrangler.jsonc`, comma-separated), and in the app and the PWA. Deploy `sync/`, release the
+   clients.
 3. Once those builds are in use, put the new private key in `billing/`
    (`wrangler secret put ENTITLEMENT_SIGNING_KEY`) and deploy.
 4. After the longest entitlement lifetime plus the 7-day offline grace, remove the old public key
@@ -246,5 +254,6 @@ to say so:
 ## Secrets
 
 Where each one lives, never its value: `ANALYTICS_ACCOUNT_ID` and `ANALYTICS_TOKEN` (rates Worker),
-the Android signing values (CI secrets and a local `keystore.properties`). A leaked analytics token
+`ENTITLEMENT_SIGNING_KEY` (`billing/`, not set yet), the Android signing values (CI secrets and a
+local `keystore.properties`). A leaked analytics token
 is revoked in the Cloudflare dashboard and replaced with `wrangler secret put`.
