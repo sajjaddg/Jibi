@@ -21,6 +21,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { isKind, KINDS, reservedKind, type Kind } from './kinds';
 import { runMigrations } from './migrations';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
@@ -43,6 +44,17 @@ const MAX_STORED_ROWS = 4 * MAX_RECORD_ROWS;
 // three times what the object can store. This is room to spare for the first and a wall for the second.
 const MAX_STORED_BYTES = 256 * 1024 * 1024;
 const MAX_DEVICES = 16;
+/**
+ * What `/v1/hello` says about the wire, bumped only when an old client could no longer talk to
+ * this server at all — a new kind or a new field is not that, `kinds` carries it.
+ */
+const PROTOCOL = 2;
+/**
+ * The oldest client build that should sync with this server, as the `versionCode` the release tag
+ * works out to (`v1.2.3` → 1020300; AGENTS.md § Deploy). 0 is no floor. A client below it tells
+ * her to update rather than failing in a way she cannot read.
+ */
+const MIN_CLIENT = { android: 0, pwa: 0 };
 /** How long a tombstone is kept at the least, counted from its own stamp: a day-old deletion is news. */
 const TOMBSTONE_KEEP_MS = 90 * 24 * 60 * 60 * 1000;
 /**
@@ -206,7 +218,7 @@ interface PushRecord {
   scope: string;
   updatedAt: number;
   device: string;
-  kind: 'legacy' | 'member' | 'transaction' | 'category' | 'asset' | 'note' | 'goal' | 'exclusion';
+  kind: Kind;
   ownerMemberId: string;
   authorMemberId?: string;
   deleted?: boolean;
@@ -232,9 +244,7 @@ function asRecords(value: unknown): PushRecord[] {
     if (!id || id.length > MAX_ID_CHARS) throw new SyncError('invalid_id', 400);
     if (!scope || scope.length > MAX_SCOPE_CHARS) throw new SyncError('invalid_scope', 400);
     if (!device || device.length > MAX_DEVICE_CHARS) throw new SyncError('invalid_device', 400);
-    if (!['legacy', 'member', 'transaction', 'category', 'asset', 'note', 'goal', 'exclusion'].includes(kind)) {
-      throw new SyncError('invalid_kind', 400);
-    }
+    if (!isKind(kind)) throw new SyncError('invalid_kind', 400);
     if (ownerMemberId.length > MAX_MEMBER_CHARS) throw new SyncError('invalid_member', 400);
     // A whole millisecond or nothing: both clients read the stamp as a Long, so one fractional
     // value stored here would fail every pull page it lands on, for every device, for ever.
@@ -243,7 +253,7 @@ function asRecords(value: unknown): PushRecord[] {
     if (body.length > MAX_BODY_BYTES) throw new SyncError('body_too_large', 413);
     return {
       id, scope, updatedAt, device,
-      kind: kind as PushRecord['kind'], ownerMemberId,
+      kind, ownerMemberId,
       deleted: r.deleted === true, nonce, body,
     };
   });
@@ -283,6 +293,11 @@ function grown(
     stored: counts.stored + Number(!existing),
     bytes: counts.bytes + added,
   };
+}
+
+/** The part of `/v1/hello` that needs no token: the protocol and what this server accepts. */
+function helloAnonymous(): { protocol: number; kinds: readonly Kind[] } {
+  return { protocol: PROTOCOL, kinds: KINDS };
 }
 
 /** A device's member: its own id, or for a token older than identity, one derived from the token. */
@@ -420,6 +435,7 @@ export class Household extends DurableObject<Env> {
       if (path === '/invite' && request.method === 'POST') return await this.invite(request);
       if (path === '/pair' && request.method === 'POST') return await this.pair(request);
       if (path === '/identity' && request.method === 'POST') return await this.setIdentity(request);
+      if (path === '/hello' && request.method === 'GET') return await this.hello(request);
       if (path === '/pull' && request.method === 'GET') return await this.pull(request, url);
       if (path === '/push' && request.method === 'POST') return await this.push(request);
       if (path === '/remove' && request.method === 'POST') return await this.remove(request);
@@ -596,6 +612,29 @@ export class Household extends DurableObject<Env> {
       auth.tokenHash,
     );
     return jsonResponse({ memberId, deviceId });
+  }
+
+  /**
+   * What this household is and how full it is, for the device that asks. Answered from the rows
+   * already counted — nothing is written, and a household nobody claimed never gets this far
+   * (`fetch` answers 401 before any table could be made).
+   */
+  private async hello(request: Request): Promise<Response> {
+    this.authorise(await this.credential(request));
+    const counts = this.counts();
+    const rows = [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')];
+    return jsonResponse({
+      ...helloAnonymous(),
+      // Every household is a family until B1.2 gives it a type, and nobody has a plan until
+      // B1.6 does, so everyone is on the free one.
+      type: 'family',
+      plan: 'free',
+      // The ceilings in force today are the hard caps; plan quotas replace them in B1.6. There
+      // is no cap on members separate from the one on devices.
+      quota: { devices: MAX_DEVICES, members: MAX_DEVICES, bytes: MAX_STORED_BYTES },
+      used: { devices: rows.length, members: new Set(rows.map(memberOf)).size, bytes: counts.bytes },
+      minClient: MIN_CLIENT,
+    });
   }
 
   /** The highest seq a tombstone has been removed at: a device that last read below it must start over. */
@@ -782,15 +821,8 @@ export class Household extends DurableObject<Env> {
     try {
       for (const record of records) {
         if (!auth.scopes.includes(record.scope)) throw new SyncError('forbidden_scope', 403);
-        const reservedKind = record.id.startsWith('member:') ? 'member'
-          : record.id.startsWith('txn:') ? 'transaction'
-            : record.id.startsWith('category:') ? 'category'
-              : record.id.startsWith('asset:') ? 'asset'
-                : record.id.startsWith('note:') ? 'note'
-                  : record.id.startsWith('goal:') ? 'goal'
-                    : record.id.startsWith('exclusion:') ? 'exclusion'
-                      : null;
-        if (reservedKind && record.kind !== reservedKind) throw new SyncError('invalid_kind', 400);
+        const reserved = reservedKind(record.id);
+        if (reserved && record.kind !== reserved) throw new SyncError('invalid_kind', 400);
         if (record.kind === 'member') {
           // Member deletion changes household membership, so it never rides the general-purpose
           // push path. Dedicated remove/leave operations validate and commit the profile
@@ -1231,6 +1263,17 @@ export default {
         );
       }
 
+      // No token, no household to speak of: the protocol and the kinds, which are the same for
+      // everyone and so may be cached. The call a client makes before it has any reason to hold a
+      // token — or after a revoked one has been thrown away.
+      if (
+        path === '/v1/hello' && request.method === 'GET' &&
+        request.headers.get('authorization') == null && request.headers.get('x-muchtoman-token') == null
+      ) {
+        if (await throttled(env.API_LIMIT, request, (ip) => ip)) return rateLimited();
+        return jsonResponse(helloAnonymous(), 200, 'public, max-age=60');
+      }
+
       if (path.startsWith('/v1/')) {
         const token = splitToken(
           request.headers.get('authorization') ?? request.headers.get('x-muchtoman-token'),
@@ -1248,6 +1291,7 @@ export default {
             : path === '/v1/revoke' && request.method === 'POST' ? 'revoke'
             : path === '/v1/rotate' && request.method === 'POST' ? 'rotate'
             : path === '/v1/devices' && request.method === 'GET' ? 'devices'
+            : path === '/v1/hello' && request.method === 'GET' ? 'hello'
             : null;
         if (!route) return textResponse('not found\n', 404);
 

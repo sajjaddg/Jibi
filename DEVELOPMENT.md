@@ -79,6 +79,12 @@ APK. Going the other way keeps sync running but loses records: an old client dro
 cannot open or parse — a new kind, a new seal, a payload its parser refuses — and moves its cursor
 past it, so updating alone never brings those records back.
 
+The kinds the server accepts live in one list, `sync/src/kinds.ts`, which both the validator and
+`GET /v1/hello` read. Hello answers `{protocol, kinds}` to anyone and, with a device token, also
+the household's type, plan, quota, usage and the oldest client build it wants; a client that
+reads `kinds` and holds back what is not on it keeps syncing the rest instead of having the whole
+batch refused. Adding a kind is one line in `kinds.ts`, deployed before any client sends it.
+
 **A release that teaches clients to read something new bumps `SYNC_READ_VERSION`** (`Sync.kt` and
 `pwa/src/sync.ts`, kept equal). Every phone and browser that updates then pulls the household from
 the start once, and applying is last-write-wins, so only the dropped records change anything.
