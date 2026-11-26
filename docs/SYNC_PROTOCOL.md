@@ -320,6 +320,26 @@ and every delete, is accepted, and no device or member is removed.
 - push: the record that would grow past `bytes` is listed in `rejected` as `{id, code:
   "quota_exceeded", what: "bytes", limit, used}`; the answer is `200` and the rest is stored.
 
+## Entitlement (Pro)
+
+What a purchase becomes. `billing/` signs it, and the app, the PWA and `sync/` check it offline.
+
+```
+base64url(payload) "." base64url(signature)          // no padding
+payload  = {"exp":…,"iat":…,"plan":"pro","slot":"<32 hex>","v":1}
+signature = Ed25519 over the UTF-8 of "mt1.entitlement." + the first part
+```
+
+- `exp` and `iat` are epoch milliseconds on whole UTC days, so they say no more than the day.
+- `slot` is 16 random bytes the **client** makes, one for each household it wants Pro in. It names
+  no license and no household.
+- A verifier holds a **list** of raw 32-byte public keys (base64url), so a key can be rotated.
+- It checks the signature first, then `v == 1`, `plan == "pro"`, and the shapes; then it is
+  expired once `now > exp + 7 days`.
+- Golden vectors: `billing/test/vectors/*.json`, made by `node tools/make-entitlement-vectors.mjs`.
+  Each is `{name, keys, token, now, result: "ok"|"expired"|"invalid", claims}`. The Kotlin and
+  PWA verifiers are still to be written (#45).
+
 ## 8. Errors
 
 `{"code": "…"}` with the status. A client matches the code, never the text.
