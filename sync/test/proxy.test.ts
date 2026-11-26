@@ -49,6 +49,17 @@ describe('rates proxies', () => {
     expect(upstream.mock.calls[0][0]).toBe('https://rates.muchtoman.com/usd-history');
   });
 
+  it('passes /history through with its query, and no query on the others', async () => {
+    const upstream = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response('{"days":{}}', { headers: { 'cache-control': 'public, max-age=21600' } }));
+    const res = await SELF.fetch('https://sync.test/history?asset=usd&from=20000&step=week');
+    expect(res.status).toBe(200);
+    expect(upstream.mock.calls[0][0]).toBe('https://rates.muchtoman.com/history?asset=usd&from=20000&step=week');
+    await SELF.fetch('https://sync.test/usd-history?x=1');
+    expect(upstream.mock.calls[1][0]).toBe('https://rates.muchtoman.com/usd-history');
+    expect((await SELF.fetch('https://sync.test/history', { method: 'POST' })).status).toBe(405);
+  });
+
   it('carries a /rates revalidation through both ways, so the browser can get a 304', async () => {
     const upstream = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(null, { status: 304, headers: { etag: '"abc"', 'cache-control': 'public, max-age=600' } }));

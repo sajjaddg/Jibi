@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import worker, { BONBAST_MAP, TGJU_MAP } from '../src/index';
+import worker, { BONBAST_MAP, recordHistory, TGJU_MAP } from '../src/index';
 import { PARSIAN_SOOT } from '../src/checks';
 
 /**
@@ -441,5 +441,28 @@ describe('GET /rates', () => {
     expect((await answer).res.status).toBe(200);
     await Promise.all(pending.splice(0));
     expect(cache.size).toBe(1);
+  });
+});
+
+describe('the day\'s history point', () => {
+  it('is what the same build would publish: checked prices, catalogue assets, nothing else', async () => {
+    setup({ 'https://www.tgju.org/gold-chart': unavailable });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const stored = new Map<string, string>();
+    const added = await recordHistory({
+      get: async (key) => {
+        const value = stored.get(key);
+        return value == null ? null : { text: async () => value };
+      },
+      put: async (key, value) => { stored.set(key, value); },
+    }, Date.UTC(2026, 10, 26, 12, 30));
+    const day = Date.UTC(2026, 10, 26) / 86_400_000;
+    const point = JSON.parse(stored.get('v1/2026-11.json')!).days[day] as Record<string, number>;
+    expect(added).toBe(Object.keys(point).length);
+    expect(point).toMatchObject({ usd: 187_000, gold18: 17_800_000, btc: 12_062_000_000, eth: 3_300 * 187_000 });
+    // Silver's page is down, so there is no silver that day, rather than a zero.
+    expect(Object.keys(point)).not.toContain('silver_999');
+    // A Tehran market with no catalogue entry (usdt here) is not an asset anyone can hold.
+    expect(Object.keys(point)).not.toContain('usdt');
   });
 });

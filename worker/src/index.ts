@@ -41,6 +41,7 @@ import {
   usdBandVerdict,
 } from './checks';
 import QUIPS from './quips.json';
+import { HISTORY_MAX_DAYS, parseQuery, readIndex, readSeries, recordRates, slice, type HistoryBucket } from './history';
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
@@ -740,6 +741,65 @@ async function buildUsdHistory(): Promise<Response> {
     { updatedAt: Date.now(), days: usdDays(irt, usdt) },
     200,
     `public, max-age=${USD_HISTORY_TTL_SECONDS}`,
+  );
+}
+
+// ───────────────────────── every asset, day by day ─────────────────────────
+
+// The day's point is written once, so six hours is as fresh as a history gets.
+const HISTORY_TTL_SECONDS = 6 * 3_600;
+const HISTORY_CACHE_VERSION = 'history-v1';
+
+/**
+ * Today's point, from the same build `/rates` answers with. A build with no prices at all writes
+ * nothing; anything less than that writes what it has.
+ */
+export async function recordHistory(bucket: HistoryBucket, now: number): Promise<number> {
+  const built = await buildRates();
+  if (built.status !== 200) throw new Error('no rates to record');
+  const { toman, coins } = JSON.parse(built.body) as { toman: Record<string, number>; coins: { id: string }[] };
+  return recordRates(bucket, Math.floor(now / 86_400_000), toman, [...RESERVED_TOMAN_IDS, ...coins.map((c) => c.id)]);
+}
+
+/**
+ * `GET /history?asset=&from=&to=&step=day|week`, days as UTC epoch days. Only catalogue assets:
+ * a made-up id is refused before anything is read for it, and what is cached is one asset's whole
+ * series, so no choice of `from` and `to` can make the edge read R2 again.
+ */
+async function assetHistory(url: URL, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const today = Math.floor(Date.now() / 86_400_000);
+  const query = parseQuery(url.searchParams, today);
+  if (query == null) return jsonResponse({ code: 'invalid_request' }, 400);
+  const bucket = env.HISTORY;
+  if (bucket == null) return jsonResponse({ code: 'unavailable' }, 503);
+
+  const cache = caches.default;
+  const key = new Request(
+    `${PUBLIC_ORIGIN}/__cache/${HISTORY_CACHE_VERSION}/${encodeURIComponent(query.asset)}`,
+    { method: 'GET' },
+  );
+  let stored = await cache.match(key);
+  if (stored == null) {
+    const index = await readIndex(bucket);
+    if (!RESERVED_TOMAN_IDS.has(query.asset) && !index?.assets.includes(query.asset)) {
+      return jsonResponse({ code: 'unknown_asset' }, 404);
+    }
+    const days = await readSeries(bucket, index, query.asset, today);
+    stored = jsonResponse({ updatedAt: Date.now(), days }, 200, `public, max-age=${HISTORY_TTL_SECONDS}`);
+    ctx.waitUntil(cache.put(key, stored.clone()));
+  }
+  const series = await stored.json<{ updatedAt: number; days: Record<string, number> }>();
+  return jsonResponse(
+    {
+      updatedAt: series.updatedAt,
+      asset: query.asset,
+      step: query.step,
+      // What the window can reach, so a client does not read an older gap as «no rate that day».
+      oldest: today - HISTORY_MAX_DAYS + 1,
+      days: slice(series.days, query.from, query.to, query.step),
+    },
+    200,
+    `public, max-age=${HISTORY_TTL_SECONDS}`,
   );
 }
 
@@ -1922,6 +1982,8 @@ interface Env {
   CRASHES?: AnalyticsEngineDataset;
   /** Pinned to hey@muchtoman.com, from feedback@ (wrangler.jsonc). Absent in tests and local dev. */
   FEEDBACK?: SendEmail;
+  /** The daily rate history (src/history.ts). Without it `/history` answers 503 and nothing else changes. */
+  HISTORY?: R2Bucket;
   /** Read-only (Account Analytics: Read), for /usage's SQL query. Secrets, not vars. */
   ANALYTICS_ACCOUNT_ID?: string;
   ANALYTICS_TOKEN?: string;
@@ -2016,6 +2078,18 @@ export default {
       }
     }
 
+    if (url.pathname === '/history') {
+      if (request.method !== 'GET') {
+        return textResponse('Method not allowed', 405, 'GET');
+      }
+      try {
+        return await assetHistory(url, env, ctx);
+      } catch (error) {
+        console.error(JSON.stringify({ message: 'history failed', error: errorMessage(error) }));
+        return jsonResponse({ code: 'unavailable' }, 502);
+      }
+    }
+
     if (url.pathname === '/crash') {
       if (request.method !== 'POST') {
         return textResponse('Method not allowed', 405, 'POST');
@@ -2081,7 +2155,7 @@ export default {
         return await landingPage(request, env);
       }
       return textResponse(
-        'muchtoman: GET /rates, GET /usd-history, GET /coin-icon, GET /download, POST /wallet-balance, POST /crash, or POST /feedback\n',
+        'muchtoman: GET /rates, GET /usd-history, GET /history, GET /coin-icon, GET /download, POST /wallet-balance, POST /crash, or POST /feedback\n',
         404,
       );
     }
@@ -2124,5 +2198,17 @@ export default {
       return new Response(null, { status: res.status, headers: res.headers });
     }
     return res;
+  },
+
+  /** The one cron (wrangler.jsonc): the day's point for /history. A failed run is a day left out. */
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    if (env.HISTORY == null) return;
+    try {
+      await recordHistory(env.HISTORY, controller.scheduledTime);
+    } catch (error) {
+      console.error(JSON.stringify({ message: 'history point not recorded', error: errorMessage(error) }));
+      // Thrown on, so the run shows as failed beside the others in the dashboard.
+      throw error;
+    }
   },
 } satisfies ExportedHandler<Env>;

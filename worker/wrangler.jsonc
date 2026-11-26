@@ -34,8 +34,13 @@
   // already installed point at it, and it is the fallback if the custom domain ever fails
   // to come up. It is useless inside Iran either way, so keeping it costs nothing.
   "workers_dev": true,
-  // No KV / R2 / D1 on purpose: the phone already keeps the last good rates,
-  // so the edge has nothing worth persisting.
+  // No KV or D1, and one R2 bucket for one thing: a point per asset per day, for charts that reach
+  // further back than the phone has been writing rates down (src/history.ts). `/rates` itself still
+  // persists nothing. Public prices only. **The bucket has to exist before a deploy**
+  // (`wrangler r2 bucket create muchtoman-history`) or the deploy fails.
+  "r2_buckets": [{ "binding": "HISTORY", "bucket_name": "muchtoman-history" }],
+  // 12:30 UTC is 16:00 in Tehran, after the market's day and on the same calendar date in both.
+  "triggers": { "crons": ["30 12 * * *"] },
   //
   // Two write-only Analytics Engine datasets: the day's one count per phone, and the crash
   // reports people chose to send (see "usage" in src/index.ts). This Worker can write them and

@@ -1206,7 +1206,8 @@ const handler = {
       // CORS headers at all today, and proxying is both cheaper and safer than teaching a
       // public endpoint to answer cross-origin — its own edge cache still does the work.
       // The dollar's daily history rides the same way: a GET the rates Worker caches for hours.
-      if (path === '/rates' || path === '/usd-history') {
+      // So does /history, whose whole question is in its query, which is public and goes along.
+      if (path === '/rates' || path === '/usd-history' || path === '/history') {
         if (request.method !== 'GET') return textResponse('GET only\n', 405, 'GET');
         const origin = env.RATES_ORIGIN ?? DEFAULT_RATES_ORIGIN;
         // Two request headers are passed on: the day's count (see "usage" in the rates Worker),
@@ -1217,7 +1218,8 @@ const handler = {
           const value = request.headers.get(name);
           if (value != null) headers[name] = value;
         }
-        const upstream = await fetch(`${origin}${path}`, { headers, signal: AbortSignal.timeout(8_000) });
+        const query = path === '/history' ? url.search : '';
+        const upstream = await fetch(`${origin}${path}${query}`, { headers, signal: AbortSignal.timeout(8_000) });
         const etag = upstream.headers.get('etag');
         return new Response(upstream.body, {
           status: upstream.status,
