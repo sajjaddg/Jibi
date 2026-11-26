@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import worker from '../src/index';
-import { clientOf, dataPoint, endpointOf, measure } from '../src/metrics';
+import { clientOf, dataPoint, ERROR_CODES, endpointOf, errorCodeOf, measure } from '../src/metrics';
+import source from '../src/index.ts?raw';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv extends Env {}
@@ -66,10 +67,33 @@ describe('the client version', () => {
 });
 
 describe('what is written', () => {
-  it('is three strings and a count, in that shape and no other', () => {
-    expect(dataPoint('push', 409, '1.4.2 android')).toEqual({
-      indexes: ['push'], blobs: ['push', '409', '1.4.2 android'], doubles: [1],
+  it('is four strings and a count, in that shape and no other', () => {
+    expect(dataPoint('push', 409, '1.4.2 android', 'household_full')).toEqual({
+      indexes: ['push'], blobs: ['push', '409', '1.4.2 android', 'household_full'], doubles: [1],
     });
+    expect(dataPoint('push', 200, '1.4.2 android').blobs).toEqual(['push', '200', '1.4.2 android', '']);
+  });
+
+  it('takes a code from the fixed list only: anything else is «other», never the text itself', () => {
+    for (const leak of [HID, SECRET, 'family:private-scope', 'no such table: record', 'household_full ']) {
+      expect(dataPoint('push', 500, null, leak).blobs![3]).toBe('other');
+    }
+  });
+
+  it('lists every code the Worker can answer with', () => {
+    const said = [...source.matchAll(/new SyncError\('([a-z_]+)'|code: '([a-z_]+)'/g)].map((m) => m[1] ?? m[2]);
+    expect(said.length).toBeGreaterThan(30);
+    for (const code of said) expect(ERROR_CODES as readonly string[], code).toContain(code);
+    expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
+  });
+
+  it('reads a refusal’s code from a copy, and leaves the answer whole', async () => {
+    const refusal = Response.json({ code: 'household_full' }, { status: 409 });
+    expect(await errorCodeOf(refusal)).toBe('household_full');
+    expect(await refusal.json()).toEqual({ code: 'household_full' });
+    expect(await errorCodeOf(Response.json({ code: 'x' }))).toBe('');
+    expect(await errorCodeOf(new Response('not found\n', { status: 404 }))).toBe('');
+    expect(await errorCodeOf(new Response('{', { status: 500, headers: { 'content-type': 'application/json' } }))).toBe('');
   });
 
   it('is one datapoint per API answer, with the status the client was given', async () => {
@@ -86,9 +110,9 @@ describe('what is written', () => {
     expect(page.status).toBeLessThan(500);
 
     expect(points).toEqual([
-      { indexes: ['pull'], blobs: ['pull', '401', '1.4.2 android'], doubles: [1] },
-      { indexes: ['unknown'], blobs: ['unknown', '404', 'unknown'], doubles: [1] },
-      { indexes: ['claim'], blobs: ['claim', '200', '1.4.2 pwa'], doubles: [1] },
+      { indexes: ['pull'], blobs: ['pull', '401', '1.4.2 android', 'unauthorised'], doubles: [1] },
+      { indexes: ['unknown'], blobs: ['unknown', '404', 'unknown', ''], doubles: [1] },
+      { indexes: ['claim'], blobs: ['claim', '200', '1.4.2 pwa', ''], doubles: [1] },
     ]);
   });
 
@@ -114,7 +138,8 @@ describe('what is written', () => {
     }
     for (const point of points) {
       expect(Object.keys(point).sort()).toEqual(['blobs', 'doubles', 'indexes']);
-      expect(point.blobs).toHaveLength(3);
+      expect(point.blobs).toHaveLength(4);
+      expect(['', ...ERROR_CODES]).toContain(point.blobs![3]);
       expect(point.blobs![0]).toMatch(/^[a-z]+$/);
       expect(point.blobs![1]).toMatch(/^\d{3}$/);
       expect(point.doubles).toEqual([1]);

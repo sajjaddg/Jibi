@@ -35,6 +35,11 @@ with the required Persian coverage; tightness comes off the width axis, never tr
   decision. One was taken on 2026-09-27: the feedback form (تنظیمات ← درباره ← بازخورد) emails
   what she types, the contact she chooses to leave and the version to the developer, only
   when she presses send.
+- The services count their own answers, not her (2026-11-26): one row per request to the sync and
+  billing APIs holding the endpoint, the status, the client's version and platform, and, on a
+  refusal, an error code from a fixed list. No household, device, member, token, address, scope or
+  license, so no row can be traced to anyone or joined to another. Read by the developer only;
+  none of it appears on muchtoman.com/usage. A fifth field is a new decision.
 - Missing rates are never zero; stale rates are named in words, not colour alone.
 - Gain is green — the convention every Iranian bank app shares.
 - Warnings are words first; colour only confirms.

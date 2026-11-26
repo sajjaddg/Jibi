@@ -23,7 +23,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { isKind, KINDS, reservedKind, type Kind } from './kinds';
 import { runMigrations } from './migrations';
-import { measure, routeOf } from './metrics';
+import { errorCodeOf, measure, routeOf } from './metrics';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -1365,11 +1365,11 @@ const handler = {
   },
 };
 
-/** Every answer is counted, by endpoint, status and client version, and nothing else (./metrics.ts). */
+/** Every answer is counted, by endpoint, status, client version and error code, and nothing else (./metrics.ts). */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const response = await handler.fetch(request, env);
-    measure(env.METRICS, request, response.status);
+    measure(env.METRICS, request, response.status, await errorCodeOf(response));
     return response;
   },
 };
