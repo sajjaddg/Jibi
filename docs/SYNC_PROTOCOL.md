@@ -112,7 +112,7 @@ client sends only what `GET /v1/hello` lists, keeping the rest to try later.
 | `override` | `override:<asset id>` | vault only | set by #32 |
 | `day` | `day:<date>` | vault only | set by #33 |
 | `pref` | `pref:<key name>` | vault only | set by #33 |
-| `entitlement` | `entitlement:<slot nonce>` | vault only | set by #45 |
+| `entitlement` | `entitlement:<random id>` | vault only | set by #45 |
 <!-- /kinds -->
 
 Every payload also carries `kind`, which Android leaves out when it equals the class default
@@ -347,6 +347,10 @@ Any member sends it to `POST /v1/entitlement`; the household keeps whichever run
 (`meta.plan`: the plan, `exp`, and the slot hashed under `mt1.do-slot|`, so it matches nothing in
 billing's database, which hashes the same nonce under `mt1.billing-slot|`). `hello` then reports
 `plan: "pro"`, and with plan quotas switched on the household has Pro's limits at once.
+
+A client keeps its entitlement in the vault as an `entitlement` record whose id is **random**: ids
+are stored in the clear, and one made from the slot nonce, or from anything billing has seen,
+would let the two databases be joined (#96). The nonce lives only inside the sealed body.
 
 The server cannot tell that one entitlement was shown to two households; billing, which signs a
 license for at most two slots, is what bounds that.
