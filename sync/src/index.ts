@@ -1101,6 +1101,11 @@ export class Household extends DurableObject<Env> {
           // horizon by a hostile push — against a day of honest edits nobody would see refused.
           if (record.deleted) throw new SyncError('invalid_kind', 400);
         }
+        // The common pot belongs to the household, as a shared budget does: any member who may
+        // write at all may add to it or correct it. Only the id namespace is fenced.
+        if ((record.kind === 'fund' || record.kind === 'fund_entry') && !record.id.startsWith(`${record.kind}:`)) {
+          throw new SyncError('invalid_id', 400);
+        }
         const existing = [...this.sql.exec<{
           updated_at: number; author_member: string; kind: PushRecord['kind']; owner_member: string;
           deleted: number; size: number;

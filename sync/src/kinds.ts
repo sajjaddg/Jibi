@@ -12,6 +12,8 @@
 /** Accepted in any household. `category` and `goal` are whole in a vault, projections in a family. */
 export const SHARED_KINDS = [
   'legacy', 'member', 'transaction', 'category', 'asset', 'note', 'goal', 'exclusion',
+  // The household's common pot (#40): the pot, and each thing paid into or out of it.
+  'fund', 'fund_entry',
 ] as const;
 
 /**
@@ -49,6 +51,8 @@ export const RESERVED_ID_PREFIXES: ReadonlyArray<readonly [prefix: string, kind:
   ['note:', 'note'],
   ['goal:', 'goal'],
   ['exclusion:', 'exclusion'],
+  ['fund:', 'fund'],
+  ['fund_entry:', 'fund_entry'],
 ];
 
 /** The kind an id's prefix reserves it to, or null for an id nobody has claimed a namespace on. */

@@ -96,6 +96,8 @@ client sends only what `GET /v1/hello` lists, keeping the rest to try later.
 | `note` | `note:<sha256 of family ref>` | any member | `target, note, editedByMemberId` |
 | `goal` | `goal:<goal id>` | any member | `goalId, nameFa, targetRial, goalKind, categoryId, period, startsOn, endsOn, createdAt, ownerMemberId, editedByMemberId` |
 | `exclusion` | `exclusion:report` | any member | `categoryIds, editedByMemberId` |
+| `fund` | `fund:<fund id>` | any member | `fundId, nameFa, ownerMemberId, createdAt` |
+| `fund_entry` | `fund_entry:<entry id>` | any member | `fundId, amountRial`, and what #40's clients add |
 | `sms` | `sms:<message SHA-256>` | vault only | set by #29 |
 | `manual_txn` | `manual_txn:m:<uuid>` | vault only | set by #29 |
 | `anchor` | `anchor:<row id>` | vault only | set by #29 |
@@ -116,8 +118,12 @@ Every payload also carries `kind`, which Android leaves out when it equals the c
 field it does not know. Money is `Long` Rial (`amountRial`, `targetRial`); `asset` carries a
 displayed Toman figure, priced on the owner's phone.
 
-An id starting with `member:`, `txn:`, `category:`, `asset:`, `note:`, `goal:` or `exclusion:`
-must carry that kind (`400 invalid_kind`).
+An id starting with `member:`, `txn:`, `category:`, `asset:`, `note:`, `goal:`, `exclusion:`,
+`fund:` or `fund_entry:` must carry that kind (`400 invalid_kind`), and a record of one of those
+kinds must have an id that starts so (`400 invalid_id`).
+
+A fund's balance is added up from its entries on each device and stored nowhere. Paying a shared
+transaction out of a fund is an entry that names the transaction.
 
 ### Vault kinds
 

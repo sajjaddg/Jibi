@@ -74,6 +74,15 @@ const CASES = [
     payload: { kind: 'exclusion', categoryIds: ['cat_loan'], editedByMemberId: MEMBER },
   },
   {
+    name: 'fund', kind: 'fund', id: 'fund:018f0000-0000-7000-8000-0000000000f1',
+    payload: { kind: 'fund', fundId: '018f0000-0000-7000-8000-0000000000f1', nameFa: 'صندوق خانه', ownerMemberId: MEMBER, createdAt: AT },
+  },
+  {
+    // The entry's shape is the clients' to settle (#40); this pins the seal and the id.
+    name: 'fund_entry', kind: 'fund_entry', id: 'fund_entry:018f0000-0000-7000-8000-0000000000f2',
+    payload: { kind: 'fund_entry', fundId: '018f0000-0000-7000-8000-0000000000f1', amountRial: 20000000 },
+  },
+  {
     name: 'tombstone', kind: 'goal', id: 'goal:018f0000-0000-7000-8000-0000000000bb',
     payload: { v: 1, id: 'goal:018f0000-0000-7000-8000-0000000000bb', deleted: true },
   },

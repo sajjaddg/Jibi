@@ -1,0 +1,11 @@
+{
+  "name": "fund",
+  "kind": "fund",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "fund:018f0000-0000-7000-8000-0000000000f1",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|fund|fund:018f0000-0000-7000-8000-0000000000f1",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "2IOUBT9QdlIEv7AJ",
+  "plaintext": "{\"kind\":\"fund\",\"fundId\":\"018f0000-0000-7000-8000-0000000000f1\",\"nameFa\":\"صندوق خانه\",\"ownerMemberId\":\"018f0000000070008000000000000001\",\"createdAt\":1795000000000}",
+  "body": "76kxSxqa6pyNXDMvztZV7Z6H5RdFn4oL06pi2IQlcbWnDlQD7ov3iMJl5GPuXe9itjhvAX0tor0AycuJiFQB+cbABwoAYupdBsodSCTJmPGOBq6v0elda4/YgkEW7N7QhfF9Q6GTl/eygwGsWl2Ai9LJSi2KDcbDMwZZ5D84Zp9yBhrsmNqDkZc1GeYQKCGuyZIeYl5SPwrBFElK0ylACncIJcmOphF6z0WP7mmrOklAELGVFKOAxF0svg=="
+}
