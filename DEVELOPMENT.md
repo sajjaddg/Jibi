@@ -164,6 +164,30 @@ Bitcoin, Ethereum/ERC-20, native Solana, TRON/TRC-20, and EVM tokens on BSC, Arb
 Polygon, Optimism, and Avalanche. Bad addresses return a stable `invalid_address` code;
 upstream failures return `unavailable`, so the phone can keep the previous amount.
 
+### Rate history
+
+`GET /history?asset=<id>&from=<day>&to=<day>&step=day|week` is for charts that reach further back
+than the phone has been writing rates down. Days are UTC epoch days, the keys both clients already
+use for `rateHistory`; `from` and `to` are optional and the window is the last 1098 days (`oldest`
+in the answer says where it starts).
+
+```json
+{ "updatedAt": 1795000000000, "asset": "usd", "step": "day", "oldest": 19687, "days": { "20783": 187000 } }
+```
+
+A day with no rate is **not in `days`** — never a zero — and `week` is the last day with a rate in
+each Saturday-to-Friday week. An id outside the catalogue is `404 unknown_asset`, a query that
+makes no sense `400 invalid_request`, no bucket `503`.
+
+The points are written by the Worker's one cron (12:30 UTC, 16:00 Tehran) from the same build
+`/rates` answers with, into the R2 bucket `muchtoman-history`: one object per month and an index
+(`src/history.ts`). It starts empty on the day it is first deployed; nothing is back-filled, and a
+run that failed is a day that stays missing. **Create the bucket before deploying**
+(`pnpm exec wrangler r2 bucket create muchtoman-history`) — `wrangler deploy` fails without it.
+`sync/` proxies the path for the PWA, so deploy `worker/` first, then `sync/`.
+
+Both clients merge it under their own `rateHistory`: where both have a day, the phone's own wins.
+
 ### Usage and crash reports
 
 Everything the app reports about itself, which `Diagnostics.kt` holds on the phone:
