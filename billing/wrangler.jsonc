@@ -28,6 +28,33 @@
   // Every call, per address and per location. Money is where abuse comes.
   "ratelimits": [{ "name": "API_LIMIT", "namespace_id": "3001", "simple": { "limit": 60, "period": 60 } }],
 
+  // Staging: its own Worker name, domain, database and rate-limit counters, for trying a change
+  // where no money and no license is real. Providers are called in their sandbox. Nothing is
+  // inherited on purpose, so every binding the Worker uses is named again. Never workers.dev.
+  "env": {
+    "staging": {
+      "name": "muchtoman-billing-staging",
+      "routes": [{ "pattern": "staging-pay.muchtoman.com", "custom_domain": true }],
+      "workers_dev": false,
+      "preview_urls": false,
+      // Placeholder, as above: `wrangler d1 create muchtoman-billing-staging`.
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "muchtoman-billing-staging",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "vars": { "PAYMENTS": "sandbox" },
+      "ratelimits": [{ "name": "API_LIMIT", "namespace_id": "4001", "simple": { "limit": 60, "period": 60 } }],
+      "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+    }
+  },
+
+  // `live` calls the providers for real; only the exact word does. Read by #46 and #47.
+  "vars": { "PAYMENTS": "live" },
+
   // The code's own console.error lines, and nothing else: invocation logs would keep URLs,
   // headers and the caller's address.
   "observability": { "enabled": true, "logs": { "invocation_logs": false } }
