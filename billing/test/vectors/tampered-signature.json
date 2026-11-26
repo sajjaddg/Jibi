@@ -1,0 +1,10 @@
+{
+  "name": "tampered-signature",
+  "keys": [
+    "s7EOpFNaWQdNpR4uKVRWC3ArUwwTVXle8Jr6NhJg6U8"
+  ],
+  "token": "eyJleHAiOjE3OTc2Mzg0MDAwMDAsImlhdCI6MTc5NDk2MDAwMDAwMCwicGxhbiI6InBybyIsInNsb3QiOiIwMDExMjIzMzQ0NTU2Njc3ODg5OWFhYmJjY2RkZWVmZiIsInYiOjF9.AE2ECFdPeUQVm9G8D2wVbtce8DupOCteejQBxhSTbBP1cSUS6NQD3YRApOoLO0E-pRCMo-FXRzPC8Euf3-BDAw",
+  "now": 1794960000000,
+  "result": "invalid",
+  "claims": null
+}

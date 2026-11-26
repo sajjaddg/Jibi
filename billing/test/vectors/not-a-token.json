@@ -1,0 +1,10 @@
+{
+  "name": "not-a-token",
+  "keys": [
+    "s7EOpFNaWQdNpR4uKVRWC3ArUwwTVXle8Jr6NhJg6U8"
+  ],
+  "token": "not a token",
+  "now": 1794960000000,
+  "result": "invalid",
+  "claims": null
+}

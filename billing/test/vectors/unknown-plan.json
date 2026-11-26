@@ -1,0 +1,10 @@
+{
+  "name": "unknown-plan",
+  "keys": [
+    "s7EOpFNaWQdNpR4uKVRWC3ArUwwTVXle8Jr6NhJg6U8"
+  ],
+  "token": "eyJleHAiOjE3OTc2Mzg0MDAwMDAsImlhdCI6MTc5NDk2MDAwMDAwMCwicGxhbiI6ImdvbGQiLCJzbG90IjoiMDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmYiLCJ2IjoxfQ.OKe7FU3ZUf2O2xR45v5zSy7vqlsLXBFaAOJR7L749nWJZ4fWvbqAXWxaw8O1ieqZgdQ_kBqYKpbI8a9u-tcHAA",
+  "now": 1794960000000,
+  "result": "invalid",
+  "claims": null
+}
