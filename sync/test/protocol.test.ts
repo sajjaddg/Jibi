@@ -30,8 +30,8 @@ describe('docs/SYNC_PROTOCOL.md', () => {
     });
     for (const { call, route } of calls) expect(route, call).not.toBeNull();
     // As many calls as routes: GET and POST of /v1/sync are two.
-    expect(new Set(calls.map((c) => c.route)).size).toBe(15);
-    expect(calls).toHaveLength(15);
+    expect(new Set(calls.map((c) => c.route)).size).toBe(17);
+    expect(calls).toHaveLength(17);
   });
 
   it('lists exactly the error codes the Worker answers', () => {
