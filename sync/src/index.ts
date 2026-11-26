@@ -296,6 +296,12 @@ function grown(
   };
 }
 
+/**
+ * `personal` is her vault: one member, her own devices, her whole state. `family` is the shared
+ * ledger, and what every household was before there were two.
+ */
+export type HouseholdType = 'personal' | 'family';
+
 /** The part of `/v1/hello` that needs no token: the protocol and what this server accepts. */
 function helloAnonymous(): { protocol: number; kinds: readonly Kind[] } {
   return { protocol: PROTOCOL, kinds: KINDS };
@@ -389,6 +395,17 @@ export class Household extends DurableObject<Env> {
     );
   }
 
+  /** Set at claim and never changed (see `claim`). */
+  private type(): HouseholdType {
+    const row = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'type')][0];
+    return row?.v === 'personal' ? 'personal' : 'family';
+  }
+
+  /** Calls that are about one person among several have nothing to say to a vault. */
+  private onlyForFamily(): void {
+    if (this.type() === 'personal') throw new SyncError('forbidden_type', 403);
+  }
+
   /**
    * The founder: the member who claimed the household. Recorded at claim; a household created
    * before this existed backfills lazily from its oldest device row, which is the claimer's.
@@ -471,6 +488,9 @@ export class Household extends DurableObject<Env> {
     const body = await readJson(request, 4096);
     const scopes = Array.isArray(body.scopes) ? (body.scopes as string[]).slice(0, 16) : [];
     if (scopes.length === 0) throw new SyncError('invalid_scope', 400);
+    // Absent is `family`, which is what every released client claims without saying.
+    const type = body.type ?? 'family';
+    if (type !== 'family' && type !== 'personal') throw new SyncError('invalid_type', 400);
     const memberId = identity(body.memberId, () => randomToken(16));
     const deviceId = identity(body.deviceId, () => randomToken(16));
     const secret = randomToken();
@@ -497,6 +517,9 @@ export class Household extends DurableObject<Env> {
       now,
     );
     this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'primary_member', memberId);
+    // Written once, here, and only for a vault: a household without the row is a family, which
+    // covers every one made before there were two kinds without touching any of them.
+    if (type === 'personal') this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'type', type);
     if (this.compacting()) await this.ctx.storage.setAlarm(now + COMPACT_EVERY_MS);
     return jsonResponse({ secret, memberId, deviceId });
   }
@@ -546,14 +569,17 @@ export class Household extends DurableObject<Env> {
     if (!row) throw new SyncError('invalid_code', 403);
     // One time means one time: redeeming consumes it whether or not anything later fails.
     this.sql.exec('DELETE FROM pairing WHERE code_hash = ?', codeHash);
-    const memberId = identity(body.memberId, () => randomToken(16));
+    // A vault has one member, so a new device is hers whatever it calls itself; only its own
+    // device id has to be new. In a family a newcomer must be somebody nobody has been.
+    const vault = this.type() === 'personal';
+    const memberId = vault ? this.primaryMember() : identity(body.memberId, () => randomToken(16));
     const deviceId = identity(body.deviceId, () => randomToken(16));
     const identityCollision = [...this.sql.exec<{ n: number }>(
       'SELECT COUNT(*) AS n FROM device WHERE id = ? OR member_id = ?',
       deviceId,
-      memberId,
+      vault ? '' : memberId,
     )][0];
-    if ((identityCollision && identityCollision.n > 0) || this.memberTaken(memberId)) {
+    if ((identityCollision && identityCollision.n > 0) || (!vault && this.memberTaken(memberId))) {
       throw new SyncError('identity_exists', 409);
     }
     const devices = [...this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM device')][0];
@@ -1018,6 +1044,7 @@ export class Household extends DurableObject<Env> {
     const secretHash = await this.credential(request);
     const body = await readJson(request, MAX_SYNC_REQUEST_BYTES);
     const auth = this.authorise(secretHash);
+    this.onlyForFamily();
     const member = typeof body.member === 'string' ? body.member : '';
     if (!member || member === auth.memberId) throw new SyncError('invalid_request', 400);
     const primary = this.primaryMember();
@@ -1041,6 +1068,8 @@ export class Household extends DurableObject<Env> {
     const secretHash = await this.credential(request);
     const body = await readJson(request, MAX_SYNC_REQUEST_BYTES);
     const auth = this.authorise(secretHash);
+    // A vault is not left: a device is revoked, and the vault itself is destroyed.
+    this.onlyForFamily();
     const record = this.memberTombstone(body.record, auth, auth.memberId);
     const response = this.removeMember(auth, auth.memberId, record);
     await this.closeIfEmpty();
@@ -1112,6 +1141,14 @@ export class Household extends DurableObject<Env> {
     const primary = this.primaryMember();
     if (primary && targetMember === primary && auth.memberId !== primary) {
       throw new SyncError('forbidden_primary', 403);
+    }
+    if (this.type() === 'personal') {
+      // By device only: revoking the one member would be every device at once.
+      if (member) throw new SyncError('forbidden_type', 403);
+      // And never the last one. A family whose last device goes is wiped; a vault is deleted by
+      // `destroy` and nothing else (PRODUCT.md), and left with no token it could not be reached.
+      const others = [...this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM device WHERE id != ?', device)][0];
+      if (!others || others.n === 0) throw new SyncError('last_device', 409);
     }
     if (device) this.sql.exec('DELETE FROM device WHERE id = ?', device);
     if (member) this.sql.exec('DELETE FROM device WHERE member_id = ?', member);

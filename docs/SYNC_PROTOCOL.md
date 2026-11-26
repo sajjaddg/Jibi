@@ -12,6 +12,16 @@ A **household** is one Durable Object with its own SQLite database, named by a r
 16–64 hex characters). It holds devices, one-time pairing codes and records. It has no key and
 reads nothing.
 
+A household has a **type**, set at `claim` and never changed:
+
+| | `family` (default) | `personal` (the vault) |
+|---|---|---|
+| members | several | one: every device is that member |
+| `pair` | the newcomer must be new | the device becomes the vault's member, whatever it sends |
+| `remove`, `leave`, `revoke {member}` | yes | `403 forbidden_type` |
+| `revoke {device}` | yes | yes, except the last device: `409 last_device` |
+| ends with its last device | yes | never; only `destroy` |
+
 A **device** holds a token `<hid>.<secret>` (secret: 64 hex), sent as `Authorization: Bearer …`
 or `X-MuchToman-Token`. The server keeps only `sha256(secret)`. A device belongs to a **member**.
 
@@ -130,7 +140,7 @@ issues that introduce them (#29–#33), each with its golden vector.
 <!-- endpoints -->
 | Call | Body | Answer |
 |---|---|---|
-| `POST /v1/claim?hid=` | `{scopes, memberId?, deviceId?}` | `{secret, memberId, deviceId}` — once per household |
+| `POST /v1/claim?hid=` | `{scopes, memberId?, deviceId?, type?}` | `{secret, memberId, deviceId}` — once per household |
 | `POST /v1/invite` | `{scopes?}` | `{code, expiresIn}` — a one-time code, ten minutes; at most 16 outstanding |
 | `POST /v1/pair` | `{code, memberId?, deviceId?}` | `{secret, scopes, memberId, deviceId}` |
 | `POST /v1/identity` | `{memberId, deviceId}` | the same — one rebinding for a token older than identity |
@@ -164,7 +174,8 @@ records **before** the failing one are stored. Re-sending is always safe (§ 6).
 
 The founder (the member who claimed) cannot be removed or revoked by anyone else, and is the only
 one who may destroy a household, once no other member is left. A member leaves with `leave`. A
-household whose last device goes is wiped, and its id can be claimed again from nothing.
+family whose last device goes is wiped, and its id can be claimed again from nothing. A vault
+differs as § 1 says.
 
 ## 5. Pull, cursors, compaction
 
@@ -234,6 +245,7 @@ Last write wins, on the server and again on each client.
 | `invalid_updated_at` | 400 | not a whole, non-negative millisecond |
 | `invalid_nonce` | 400 | nonce empty or too long |
 | `invalid_identity` | 400 | `identity` without two ids |
+| `invalid_type` | 400 | `claim` with a type that is neither `family` nor `personal` |
 | `invalid_since` | 400 | |
 | `invalid_limit` | 400 | |
 | `invalid_secret` | 400 | a rotation secret that is not 64 hex |
@@ -244,6 +256,7 @@ Last write wins, on the server and again on each client.
 | `forbidden_scope` | 403 | a scope the token does not hold |
 | `forbidden_owner` | 403 | writing a record only another member may write |
 | `forbidden_primary` | 403 | only the founder may, or nobody may do this to the founder |
+| `forbidden_type` | 403 | a call that is not for this type of household |
 | `unknown_member` | 404 | |
 | `already_claimed` | 409 | |
 | `identity_exists` | 409 | `pair` with an id somebody has had |
@@ -251,6 +264,7 @@ Last write wins, on the server and again on each client.
 | `device_exists` | 409 | |
 | `member_exists` | 409 | |
 | `too_many_devices` | 409 | |
+| `last_device` | 409 | revoking a vault's only device |
 | `household_full` | 409 | § 7 |
 | `members_remain` | 409 | `destroy` while others are members |
 | `resync_required` | 410 | § 5 |
