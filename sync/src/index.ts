@@ -385,15 +385,24 @@ export class Household extends DurableObject<Env> {
   /**
    * Whether the caller may change who is here: invite, or put somebody else out. An admin may. A
    * read-only member may not. A plain member may until `ROLES_RESTRICT_MEMBERS`, and may never
-   * put out an admin.
+   * put out somebody who was made an admin.
+   *
+   * «Made» is the word: the stand-in a family gets when its founder has left (roles.ts) is not
+   * protected this way, because released clients let any member remove that person today.
    */
   private mayManage(auth: AuthorisedDevice, targetMember?: string): void {
-    const roles = this.roles();
-    const mine = roles.get(auth.memberId) ?? 'member';
+    const mine = this.roles().get(auth.memberId) ?? 'member';
     if (mine === 'admin') return;
-    if (mine === 'readonly' || this.restrictsMembers() || (targetMember && roles.get(targetMember) === 'admin')) {
+    if (mine === 'readonly' || this.restrictsMembers() || (targetMember && this.madeAdmin(targetMember))) {
       throw new SyncError('forbidden_role', 403);
     }
+  }
+
+  /** Whether somebody gave this member the admin role (`POST /v1/role`). */
+  private madeAdmin(memberId: string): boolean {
+    return [...this.sql.exec<{ member_id: string; token_hash: string }>(
+      "SELECT member_id, token_hash FROM device WHERE role = 'admin'",
+    )].some((row) => memberOf(row) === memberId);
   }
 
   /** `PLAN_LIMITS_ENFORCED` (plans.ts), as a method so that a test can run the object with it on. */
