@@ -1248,6 +1248,18 @@ export class Household extends DurableObject<Env> {
     return record;
   }
 
+  /**
+   * Every device of a member. By `memberOf`, not by the column: a token older than identity has no
+   * member id on its row, and matching the column would answer «done» and leave it working.
+   */
+  private dropMember(memberId: string): void {
+    for (const row of [...this.sql.exec<{ id: string; member_id: string; token_hash: string }>(
+      'SELECT id, member_id, token_hash FROM device',
+    )]) {
+      if (memberOf(row) === memberId) this.sql.exec('DELETE FROM device WHERE id = ?', row.id);
+    }
+  }
+
   /** Writes the profile tombstone and cuts off the member as one SQLite transaction. */
   private removeMember(auth: AuthorisedDevice, targetMember: string, record: PushRecord): Response {
     const head = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'seq')][0];
@@ -1280,7 +1292,7 @@ export class Household extends DurableObject<Env> {
       );
       this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'seq', String(seq));
       this.saveCounts(counts);
-      this.sql.exec('DELETE FROM device WHERE member_id = ?', targetMember);
+      this.dropMember(targetMember);
       this.sql.exec('DELETE FROM pairing');
     });
     const clamped = storedAt === record.updatedAt ? [] : [{ id: record.id, updatedAt: storedAt }];
@@ -1302,11 +1314,9 @@ export class Household extends DurableObject<Env> {
     // tombstone behind for nobody, take that id out of reach for ever and sweep every invite. A
     // buried profile still counts, so a removal whose answer was lost can be sent again — the
     // phone buries the member only once the server says yes, and never pulls its own tombstone.
-    const known = [...this.sql.exec(
-      'SELECT 1 FROM device WHERE member_id = ? UNION ALL SELECT 1 FROM record WHERE id = ? LIMIT 1',
-      member,
-      `member:${member}`,
-    )].length > 0;
+    const known = [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')]
+      .some((row) => memberOf(row) === member) ||
+      [...this.sql.exec('SELECT 1 FROM record WHERE id = ? LIMIT 1', `member:${member}`)].length > 0;
     if (!known) throw new SyncError('unknown_member', 404);
     const record = this.memberTombstone(body.record, auth, member);
     return this.removeMember(auth, member, record);
@@ -1384,16 +1394,16 @@ export class Household extends DurableObject<Env> {
     // The founder is not removable by anyone else — a family survives its members falling out.
     // Removing themselves stays their own right, which is also how anyone leaves: revoke your
     // own member and walk.
-    const targetMember = member || ([...this.sql.exec<{ member_id: string }>(
-      'SELECT member_id FROM device WHERE id = ?', device,
-    )][0]?.member_id ?? '');
+    const named = member ? undefined : [...this.sql.exec<{ member_id: string; token_hash: string }>(
+      'SELECT member_id, token_hash FROM device WHERE id = ?', device,
+    )][0];
+    const targetMember = member || (named ? memberOf(named) : '');
     const primary = this.primaryMember();
     if (primary && targetMember === primary && auth.memberId !== primary) {
       throw new SyncError('forbidden_primary', 403);
     }
-    // Revoking oneself is leaving, which is always allowed. By device id too: a token older than
-    // identity has no member id on its row to match.
-    if (targetMember !== auth.memberId && device !== auth.id) this.mayManage(auth, targetMember);
+    // Revoking oneself is leaving, which is always allowed.
+    if (targetMember !== auth.memberId) this.mayManage(auth, targetMember);
     if (this.type() === 'personal') {
       // By device only: revoking the one member would be every device at once.
       if (member) throw new SyncError('forbidden_type', 403);
@@ -1403,7 +1413,7 @@ export class Household extends DurableObject<Env> {
       if (!others || others.n === 0) throw new SyncError('last_device', 409);
     }
     if (device) this.sql.exec('DELETE FROM device WHERE id = ?', device);
-    if (member) this.sql.exec('DELETE FROM device WHERE member_id = ?', member);
+    if (member) this.dropMember(member);
     // Outstanding invite codes die with the revocation. A pairing row is not attributed to the
     // device that minted it, and an ex-member who photographed a QR before being evicted must
     // not be able to walk back in with it — the remaining members can mint a fresh code in one
