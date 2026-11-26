@@ -1,0 +1,11 @@
+{
+  "name": "goal",
+  "kind": "goal",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "goal:018f0000-0000-7000-8000-0000000000aa",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|goal|goal:018f0000-0000-7000-8000-0000000000aa",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "M9NHvimt0OXLlj8X",
+  "plaintext": "{\"kind\":\"goal\",\"goalId\":\"018f0000-0000-7000-8000-0000000000aa\",\"nameFa\":\"سفر\",\"targetRial\":500000000,\"goalKind\":\"save\",\"categoryId\":\"\",\"period\":\"jmonth\",\"startsOn\":1795000000000,\"endsOn\":null,\"createdAt\":1795000000000,\"ownerMemberId\":\"018f0000000070008000000000000001\",\"editedByMemberId\":\"018f0000000070008000000000000001\"}",
+  "body": "dNA9+ikLbQ4l7VvryzvHQHnJNizbRnwfvmnfoWXuSk182qctBj2VTBThnaK2CgheM/jdhZd+09pAHsM0bwwVbfewbe34OlcMjEeRJccot+GHTsIkJCFORbRbh9ZicUv4eHv9b0ba2gezjODOZdrDaLlQQqfHBWh9RR1HkftBl3+Ssm1jY6CB76xAVEx4rznlOsyH27dPXuqcRuVitxSGlRCtyv9eb2w49QU9a+8Y212cvS965HaJnu0XXr3k4J9fvT/WzUfFOPC+Xz7bnowFdUlruM3wJ2kxPlRMQUtS8JfMENFG5A8+5Hx3XvLy3Qz7MhrI2P3HMyiBxpjiRzOqs3grBKMjfKy+X50XWfOVY3pskaawgQTkjto2Dz8xN2kGNug2lnJ/kmpMqDmEAHHaw8ks9cvLv1EUV3LIijcGlOuJE6GGNkcatZUVuHyd8ykcCae7n8GO"
+}

@@ -1,0 +1,290 @@
+# Sync protocol (v2)
+
+The contract between `sync/` and its two clients, `app/` (`Sync.kt`) and `pwa/` (`sync.ts`).
+The architecture and its reasons are in [backend-plan.md](backend-plan.md). Where this document
+and the Worker disagree, the Worker is what runs: fix the drift here. `sync/test/protocol.test.ts`
+fails when the kinds, the endpoints or the error codes listed here are not the Worker's, and
+`sync/test/vectors.test.ts` when a golden vector no longer opens.
+
+## 1. The parts
+
+A **household** is one Durable Object with its own SQLite database, named by a random id (`hid`,
+16–64 hex characters). It holds devices, one-time pairing codes and records. It has no key and
+reads nothing.
+
+A **device** holds a token `<hid>.<secret>` (secret: 64 hex), sent as `Authorization: Bearer …`
+or `X-MuchToman-Token`. The server keeps only `sha256(secret)`. A device belongs to a **member**.
+
+A **scope** is a keyed stream, today `family:<hid>`, with its own 32-byte AES-GCM key that only
+devices have. The server also keeps each token's list of scopes, as a second lock.
+
+Every POST carries `Content-Type: application/json`; anything else is `415`.
+
+## 2. The envelope
+
+```json
+{ "id": "goal:…", "scope": "family:…", "kind": "goal", "updatedAt": 1795000000000,
+  "device": "…", "ownerMemberId": "…", "authorMemberId": "…", "deleted": false,
+  "nonce": "<base64>", "body": "<base64>" }
+```
+
+| Field | Rule |
+|---|---|
+| `id` | 1–256 characters, unique in the household. See § 4 |
+| `scope` | 1–128 characters, one of the token's |
+| `kind` | § 3. Absent means `legacy` |
+| `updatedAt` | whole milliseconds, ≥ 0. The server clamps it (§ 6) |
+| `device` | 1–64 characters. Ignored on write: the server stores the token's device |
+| `ownerMemberId` | ≤ 64 characters |
+| `authorMemberId` | set by the server from the token; whatever a client sends is ignored |
+| `deleted` | a tombstone |
+| `nonce` | 12 random bytes, standard base64, never reused with a key |
+| `body` | AES-GCM ciphertext with its 16-byte tag, standard base64 without line breaks, ≤ 65536 characters |
+
+### Sealing
+
+AES-256-GCM over the UTF-8 bytes of a JSON string, with additional data
+
+```
+recordAad = mt1|<scope>|<kind>|<id>
+```
+
+so a body cannot be served under another id, kind or scope. The id goes last, so a `|` inside one
+shifts nothing. The stamp is **not** bound, because the server may clamp it.
+
+A reader opens with the AAD first and falls back to no AAD, the seal every record before
+`recordAad` wore.
+
+### Tombstones
+
+`deleted: true`, and a body sealing exactly:
+
+```json
+{ "v": 1, "id": "<the record's own id>", "deleted": true }
+```
+
+A client honours a deletion only when that payload authenticates and names the record it arrived
+on; the flag outside the seal is not believed. `note` has no tombstone (an empty note says it), and
+`exclusion` is refused one (an empty list says it).
+
+## 3. Kinds
+
+The Worker accepts exactly the kinds in `sync/src/kinds.ts`. An unknown kind is `400 invalid_kind`
+for the **whole batch**, so a new kind is deployed to `sync/` before any client sends it, and a
+client sends only what `GET /v1/hello` lists, keeping the rest to try later.
+
+### Accepted today
+
+<!-- kinds -->
+| Kind | Id | Written by | Payload |
+|---|---|---|---|
+| `legacy` | anything not reserved below | its author | records from builds older than kinds |
+| `member` | `member:<memberId>` | that member only | `memberId, name, sharesSms, avatar` |
+| `transaction` | `txn:<memberId>:<hex of local ref>` | its owner only | `ownerMemberId, sourceKind, at, amountRial, direction, bank, categoryId, categoryName, categoryKind, transfer, categoryGlyph, categoryEditorId, categoryUpdatedAt, categoryEditedAt, merchant, member?` |
+| `category` | `category:<sha256 of family ref>` | any member | `target, categoryId, categoryName, categoryKind, categoryGlyph, editedByMemberId, categoryEditedAt, split?, splitCategories?` |
+| `asset` | `asset:<memberId>` | that member only | `memberId, totalToman, items[{name, toman}]` |
+| `note` | `note:<sha256 of family ref>` | any member | `target, note, editedByMemberId` |
+| `goal` | `goal:<goal id>` | any member | `goalId, nameFa, targetRial, goalKind, categoryId, period, startsOn, endsOn, createdAt, ownerMemberId, editedByMemberId` |
+| `exclusion` | `exclusion:report` | any member | `categoryIds, editedByMemberId` |
+<!-- /kinds -->
+
+Every payload also carries `kind`, which Android leaves out when it equals the class default
+(`encodeDefaults` is off), as it does any defaulted field. A reader accepts both, and ignores a
+field it does not know. Money is `Long` Rial (`amountRial`, `targetRial`); `asset` carries a
+displayed Toman figure, priced on the owner's phone.
+
+An id starting with `member:`, `txn:`, `category:`, `asset:`, `note:`, `goal:` or `exclusion:`
+must carry that kind (`400 invalid_kind`).
+
+### Vault kinds (planned, #22)
+
+A vault is a household of type `personal` (#20). These kinds will be accepted only there. The id
+is `<kind>:<key>`, so two kinds can never land on one row. Payload shapes are set by the client
+issues that introduce them (#29–#33), each with its golden vector.
+
+| Source on the device | Kind | Key | Merge |
+|---|---|---|---|
+| `sms_source` | `sms` | the message's SHA-256 | append-only; delete = tombstone |
+| `manual_txn` | `manual_txn` | `m:<uuid>` | LWW |
+| `balance_anchor` | `anchor` | row id | LWW |
+| `category` | `category` (existing) | category id | LWW |
+| `rule` | `rule` | rule id | LWW |
+| `txn_decision` | `decision` | `<ref>:<decision kind>` | LWW |
+| `link_decision` | `link` | row id | LWW |
+| `goal` (budget, goal, installment, bill, cheque) | `goal` (existing) | row id | LWW |
+| prefs `holdings` | `holding` | asset id | LWW per asset |
+| prefs `bankAccounts`, `disabledBanks`, `extraBankNumbers` | `bank` | bank or account name | LWW; `balance` stays the Toman `Double` |
+| prefs `loans` | `loan_person` | person id | LWW per person |
+| prefs `overrides` | `override` | asset id | LWW |
+| prefs `history`, `rateHistory` | `day` | the date | append-only, one a day |
+| other shared prefs (`name`, `quipTone`, `showRial`, `textSize`, `reportExcluded`, `ledgerStartsOn`, `installmentReminder`) | `pref` | key name | LWW per key |
+| Pro entitlement | `entitlement` | its slot nonce | LWW |
+
+**Never synced** (they belong to one device): `lockEnabled`, `widgetLock`, `themeMode`, `seenSms`,
+`smsScannedTo`, `notifyScannedTo`, `smsSchema`, `smsFoldNeedsRefresh`, `dismissedUpdate`,
+`onboarded`, `smsEnabled`, every notification mark (`budgetMarks`, `filingMark`, …), and
+`derived.db`, which each device rebuilds from `sms`.
+
+## 4. Endpoints
+
+<!-- endpoints -->
+| Call | Body | Answer |
+|---|---|---|
+| `POST /v1/claim?hid=` | `{scopes, memberId?, deviceId?}` | `{secret, memberId, deviceId}` — once per household |
+| `POST /v1/invite` | `{scopes?}` | `{code, expiresIn}` — a one-time code, ten minutes; at most 16 outstanding |
+| `POST /v1/pair` | `{code, memberId?, deviceId?}` | `{secret, scopes, memberId, deviceId}` |
+| `POST /v1/identity` | `{memberId, deviceId}` | the same — one rebinding for a token older than identity |
+| `GET /v1/hello` | — | without a token `{protocol, kinds}`; with one, also `{type, plan, quota, used, minClient}` |
+| `GET /v1/sync?since=&limit=&live=` | — | § 5 |
+| `POST /v1/sync` | `{records}` (≤ 500, ≤ 2 MiB) | `{seq, accepted, clamped: [{id, updatedAt}]}` |
+| `POST /v1/remove` | `{member, record}` — the member's tombstone | `{revoked, seq, clamped}` |
+| `POST /v1/leave` | `{record}` — the caller's tombstone | `{revoked, seq, clamped}` |
+| `POST /v1/destroy` | `{}` | `{destroyed: true}` |
+| `POST /v1/revoke` | `{device}` or `{member}` | `{revoked}`; every outstanding code dies |
+| `POST /v1/rotate` | `{secret?}` | `{secret}`; the old one stops at once |
+| `GET /v1/devices` | — | `{devices: [{memberId, addedAt}]}` |
+<!-- /endpoints -->
+
+`pair` is the one call a device makes before it has a secret: it sends `<hid>.` followed by 64
+zeros, which only routes the request.
+
+`protocol` changes only when an old client could no longer talk to the server at all. `minClient`
+is the oldest build (`versionCode`) that should sync; 0 is no floor.
+
+A client may check whether its token still works with `since` set to the largest number it has.
+That is answered normally and does **not** count as having read anything.
+
+### Push
+
+Shape is checked for the whole batch first: one bad record is a `4xx` and nothing is written.
+Ownership and size are checked record by record as they are written, so on such an error the
+records **before** the failing one are stored. Re-sending is always safe (§ 6).
+
+### Who may do what
+
+The founder (the member who claimed) cannot be removed or revoked by anyone else, and is the only
+one who may destroy a household, once no other member is left. A member leaves with `leave`. A
+household whose last device goes is wiped, and its id can be claimed again from nothing.
+
+## 5. Pull, cursors, compaction
+
+`GET /v1/sync?since=N&limit=L` (L ≤ 1000, default 500) answers
+
+```json
+{ "seq": 41, "records": [ … ], "hasMore": false, "horizon": 0,
+  "rotationClientSecret": true, "memberId": "…", "deviceId": "…", "primaryMemberId": "…" }
+```
+
+Records after `since`, oldest first, only in the token's scopes; a page also stops near 768 KiB.
+The next request uses `seq` as `since`. Keep going while `hasMore`.
+
+`seq` is the household's counter: it moves up with every stored write, and a replaced record takes
+a new one.
+
+Asking after `N` records that the device holds everything up to `N`: a number, never a time. With
+compaction on (`COMPACTION`, off until both clients handle what follows), a daily alarm removes
+tombstones that every device has read and whose stamp is over 90 days old. A device whose first
+unread row is over 180 days old is no longer waited for. `horizon` is the highest `seq` a
+tombstone was ever removed at.
+
+A pull with `since < horizon` and without `live=1` answers `410 {code: "resync_required",
+horizon}`. The client then pulls `since=0&live=1` to the end, which omits tombstones at or below
+the horizon and sends those above it. **What that walk delivers is everything that is live:** the
+client drops synced rows that did not arrive, keeping only what it has not yet published.
+
+## 6. Merging
+
+Last write wins, on the server and again on each client.
+
+- The server stores `min(updatedAt, now + 24 h)` (`MAX_STAMP_SKEW_MS`) and returns changed stamps
+  in `clamped`, so both sides agree.
+- A write is skipped (not an error) when the stored stamp is later, or equal and the stored author
+  member id is ≥ the pusher's. So a retried batch changes nothing, and an edit must move the stamp:
+  `max(now, previous + 1)`.
+- In a vault every device is the same member, so on an exact tie the first write stands. A client
+  takes what the server sends.
+- Clients clamp an arriving stamp to `now + 48 h` (`MAX_SYNC_STAMP_SKEW_MS`).
+- Shared budgets, goals, exclusions and filings break a same-millisecond tie by editor member id.
+- `sms` and `day` are append-only: two devices make the same id from the same message or date.
+
+## 7. Limits
+
+| | |
+|---|---|
+| live records | 120,000 (`409 household_full`) |
+| rows including tombstones | 480,000 |
+| ciphertext bytes | 256 MiB; a shrinking edit or a delete is always accepted |
+| devices | 16 |
+| per address, a minute | 1200 calls; 5 claims; 30 membership changes per household (`429`, `retry-after: 60`) |
+
+## 8. Errors
+
+`{"code": "…"}` with the status. A client matches the code, never the text.
+
+<!-- errors -->
+| Code | Status | Meaning |
+|---|---|---|
+| `invalid_request` | 400 / 413 | not a JSON object, or a field the call needs is missing |
+| `invalid_record` | 400 | a record is not an object |
+| `invalid_id` | 400 | id empty, too long, or outside its kind's namespace |
+| `invalid_scope` | 400 | scope empty or too long, or no scope asked for |
+| `invalid_device` | 400 | `device` empty or too long |
+| `invalid_kind` | 400 | unknown kind, a reserved id under another kind, or a tombstone where none is allowed |
+| `invalid_member` | 400 | `ownerMemberId` too long |
+| `invalid_updated_at` | 400 | not a whole, non-negative millisecond |
+| `invalid_nonce` | 400 | nonce empty or too long |
+| `invalid_identity` | 400 | `identity` without two ids |
+| `invalid_since` | 400 | |
+| `invalid_limit` | 400 | |
+| `invalid_secret` | 400 | a rotation secret that is not 64 hex |
+| `invalid_member_tombstone` | 400 | `remove`/`leave` record does not bury that member |
+| `invalid_hid` | 400 | |
+| `unauthorised` | 401 | no token, or not one of this household's |
+| `invalid_code` | 403 | pairing code unknown, used or expired |
+| `forbidden_scope` | 403 | a scope the token does not hold |
+| `forbidden_owner` | 403 | writing a record only another member may write |
+| `forbidden_primary` | 403 | only the founder may, or nobody may do this to the founder |
+| `unknown_member` | 404 | |
+| `already_claimed` | 409 | |
+| `identity_exists` | 409 | `pair` with an id somebody has had |
+| `identity_locked` | 409 | |
+| `device_exists` | 409 | |
+| `member_exists` | 409 | |
+| `too_many_devices` | 409 | |
+| `household_full` | 409 | § 7 |
+| `members_remain` | 409 | `destroy` while others are members |
+| `resync_required` | 410 | § 5 |
+| `body_too_large` | 413 | |
+| `too_many_records` | 413 | |
+| `unsupported_media_type` | 415 | a POST not labelled JSON |
+| `rate_limited` | 429 | |
+| `internal` | 500 | |
+| `unavailable` | 502 | the rates Worker behind a proxied path did not answer |
+<!-- /errors -->
+
+Only `/v1/*` answers are counted (endpoint, status, client version, code — `sync/src/metrics.ts`).
+Clients send `X-MuchToman-Client: <version> <platform>`.
+
+## 9. Release order
+
+1. A new **kind**: `sync/src/kinds.ts`, deployed, then clients.
+2. A new **shape** a client must be able to read: bump `SYNC_READ_VERSION` in `Sync.kt` and
+   `sync.ts` together, so each updated client pulls the household from the start once. An older
+   client drops what it cannot open and moves its cursor past it.
+3. Never point anything at `workers.dev`: Iran sinkholes it.
+
+## 10. Golden vectors
+
+`sync/test/vectors/*.json`, made by `node tools/make-sync-vectors.mjs` and never by hand. Each is
+
+```json
+{ "name": "goal", "kind": "goal", "scope": "…", "id": "…", "aad": "mt1|…" , "key": "<base64url>",
+  "nonce": "<base64>", "plaintext": "…", "body": "<base64>" }
+```
+
+`aad` is `null` for the unbound legacy seal. A reader must open `body` to `plaintext`, and sealing
+`plaintext` with the same key, nonce and AAD must give `body` byte for byte. An unknown field fails
+the run, as in the SMS corpus. There is one vector for every accepted kind. The keys are public
+test keys and the nonces are fixed, which no real record may ever be.
+
+The Kotlin (`SyncVectorsTest`) and PWA tests that read these files are still to be written (#17).

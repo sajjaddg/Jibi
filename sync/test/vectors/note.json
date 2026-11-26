@@ -1,0 +1,11 @@
+{
+  "name": "note",
+  "kind": "note",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "note:a643a0a3d81d35dfae4bbb4001aca0a03f7430b10e302fec05a6df4814dbf37f",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|note|note:a643a0a3d81d35dfae4bbb4001aca0a03f7430b10e302fec05a6df4814dbf37f",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "v50vfKYIB1RW/37o",
+  "plaintext": "{\"kind\":\"note\",\"target\":\"txn:018f0000000070008000000000000001:733a643937306336323134346663613562623962346338626564653736623639373264343530383566393662663666646663613932656335373961396262353261373a30\",\"note\":\"کادوی تولد مامان\",\"editedByMemberId\":\"018f0000000070008000000000000002\"}",
+  "body": "eB8i6fN0U5GAjQIM2IbZBFoO9lz451PaY5bv0G/qmT78y+6ZDKT8SD4PYHSSv7vd0ud3pz6FEjIO9MbEHfhXX8LcrR/8qmgUEd/Df7QkqLImHQfevONPVEmXAjEGDGNqB6dhIXy/yIz3HToHbPDCl4qenF3LUBzLVCatFuRThv7WdgUvt+kIf8V6tSounJONRAxLFKuDsVT5Bi1xJk5iJlMSxzM2qSRB9GqpAcpu4EBdKs8K/laDJnjSGk05303jKr5EOvIor49Q8jHdwOEqrBewsdBzMCBdmgYf8DInF0Haeyio/zw1tcBy53OKddRh6Qxxcv5uklxuhnw1mxjfrbltKVacg6GNaaef/vBDoveeKOTfEFi5dnUu+JwQWT9IRQvRvOMciU9ChdKZgbEIZPkv4S7zQw=="
+}

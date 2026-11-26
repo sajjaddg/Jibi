@@ -1,0 +1,11 @@
+{
+  "name": "tombstone",
+  "kind": "goal",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "goal:018f0000-0000-7000-8000-0000000000bb",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|goal|goal:018f0000-0000-7000-8000-0000000000bb",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "2QlJ2rDt5so7iRkj",
+  "plaintext": "{\"v\":1,\"id\":\"goal:018f0000-0000-7000-8000-0000000000bb\",\"deleted\":true}",
+  "body": "J+Bj7Fr5EFns4SAzcFkgrq8RuTIh6dpTGxr59AVRsl+lghIdjfB5Hxk7jgPuqNU/wFMEXjExqyHo24xfAlxIE3SPah9W/8ozhgiSHRMCQ7dg7zTabL2Q"
+}

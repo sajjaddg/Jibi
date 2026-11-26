@@ -68,6 +68,11 @@ Tests are plain JVM, no device needed:
 Use `-Pmuchtoman.syncUrl` to point family sync at a local Worker. The emulator reaches a local
 port through `10.0.2.2`; a physical phone needs `adb reverse`, as with the rates Worker.
 
+The wire contract — envelope, AAD, kinds, endpoints, error codes, cursors, release order — is
+[docs/SYNC_PROTOCOL.md](docs/SYNC_PROTOCOL.md), with golden vectors in `sync/test/vectors/`
+(`node tools/make-sync-vectors.mjs` writes them). `sync/`'s tests fail when the document's lists
+and the Worker's disagree.
+
 Family records are encrypted on the client. The sync Worker stores routing metadata and
 ciphertext only. A member's SMS sharing starts off, raw SMS bodies are never synchronized, and
 disabling sharing publishes tombstones for that member's previously shared SMS transactions.

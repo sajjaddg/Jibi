@@ -1,0 +1,11 @@
+{
+  "name": "asset",
+  "kind": "asset",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "asset:018f0000000070008000000000000001",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|asset|asset:018f0000000070008000000000000001",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "gvDK6RTsCX74H4Sh",
+  "plaintext": "{\"kind\":\"asset\",\"memberId\":\"018f0000000070008000000000000001\",\"totalToman\":178563180.5,\"items\":[{\"name\":\"طلای ۱۸\",\"toman\":178563180.5}]}",
+  "body": "nnuHy5xcNbAzauVhLnF7wCAnPX6wimBN9hLjp5GbBfvDUarfX3Q62yuppyaTYLM8TVxFTnlgvavj4rwxYSv+CbZsMze37e1rIbshEgopLWShn2xPiQVuqhKUHPUNzBzge6ZuiIBNNTlyF9vWfccgyFF02/AHI7x+O6dxuy3IL8LmZBv5tqQ3oLkF/P3BbLGf3fEUvFCE5iUIleB3aIQ="
+}

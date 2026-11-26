@@ -1,0 +1,11 @@
+{
+  "name": "member",
+  "kind": "member",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "member:018f0000000070008000000000000001",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|member|member:018f0000000070008000000000000001",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "AjAqNo9rcmnyZw29",
+  "plaintext": "{\"kind\":\"member\",\"memberId\":\"018f0000000070008000000000000001\",\"name\":\"مریم\",\"sharesSms\":false,\"avatar\":\"\"}",
+  "body": "IovmMRRspsYBvcXMWYuu4grNU6L5DIqDKSgWkFXqKWypjNdJWy/JJBimPb2kn9w975P7lzHgtHON6kUOMhpLz/QYugYO2/+cBoUElpOuRWa4RA7+7u4ca1f2dRjRWLgz6Ji1iHfg16jE1iN+xBgOd2RBMTPUmflsMFNoEwJb3A=="
+}
