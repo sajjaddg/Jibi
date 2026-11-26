@@ -104,6 +104,17 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    id: 4,
+    name: 'device gains acked_seq; a partial index finds tombstones by seq',
+    up(sql) {
+      // A number and never a time: it is the highest seq the device has said it holds, kept so
+      // the daily compaction knows how far every phone has read. Existing devices start at 0 —
+      // they have said nothing yet — which holds the horizon back until each one pulls once.
+      sql.exec('ALTER TABLE device ADD COLUMN acked_seq INTEGER NOT NULL DEFAULT 0');
+      sql.exec('CREATE INDEX IF NOT EXISTS record_tombstone ON record(seq) WHERE deleted = 1');
+    },
+  },
 ];
 
 /**
