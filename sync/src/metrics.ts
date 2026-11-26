@@ -20,9 +20,11 @@ const V1_ROUTES: Record<string, string> = {
   'POST /v1/identity': 'identity',
   'POST /v1/remove': 'remove',
   'POST /v1/leave': 'leave',
+  'POST /v1/destroy': 'destroy',
   'POST /v1/revoke': 'revoke',
   'POST /v1/rotate': 'rotate',
   'GET /v1/devices': 'devices',
+  'GET /v1/hello': 'hello',
 };
 
 export function routeOf(method: string, path: string): string | null {

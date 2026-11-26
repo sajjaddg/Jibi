@@ -31,6 +31,9 @@ describe('endpoint names', () => {
     expect(endpointOf('POST', '/v1/sync')).toBe('push');
     expect(endpointOf('POST', '/v1/claim')).toBe('claim');
     expect(endpointOf('GET', '/v1/devices')).toBe('devices');
+    // The route table is also what dispatches, so one missing from it is a 404, not just a miscount.
+    expect(endpointOf('GET', '/v1/hello')).toBe('hello');
+    expect(endpointOf('POST', '/v1/destroy')).toBe('destroy');
     expect(endpointOf('DELETE', '/v1/sync')).toBe('unknown');
     // A path a visitor made up is one label, not a row per guess.
     expect(endpointOf('GET', `/v1/${HID}`)).toBe('unknown');

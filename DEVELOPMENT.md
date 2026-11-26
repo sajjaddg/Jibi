@@ -79,6 +79,12 @@ APK. Going the other way keeps sync running but loses records: an old client dro
 cannot open or parse — a new kind, a new seal, a payload its parser refuses — and moves its cursor
 past it, so updating alone never brings those records back.
 
+The kinds the server accepts live in one list, `sync/src/kinds.ts`, which both the validator and
+`GET /v1/hello` read. Hello answers `{protocol, kinds}` to anyone and, with a device token, also
+the household's type, plan, quota, usage and the oldest client build it wants; a client that
+reads `kinds` and holds back what is not on it keeps syncing the rest instead of having the whole
+batch refused. Adding a kind is one line in `kinds.ts`, deployed before any client sends it.
+
 **A release that teaches clients to read something new bumps `SYNC_READ_VERSION`** (`Sync.kt` and
 `pwa/src/sync.ts`, kept equal). Every phone and browser that updates then pulls the household from
 the start once, and applying is last-write-wins, so only the dropped records change anything.
@@ -741,6 +747,45 @@ each with the reading it must produce and a `why` explaining which phone produce
 Both parsers read it, so the Kotlin and TypeScript sides cannot drift on the cases they share.
 An absent key is not asserted; an unknown key fails the run, so a typo cannot quietly weaken it.
 
+### Destroying a household
+
+`POST /v1/destroy` makes the server forget a household: every record, device and code, then the
+object is as if never claimed, so the id can be claimed again from nothing and no old token opens
+it. Today only the founder may, and only once they are the last member; anyone else leaves. What is
+on the phones is untouched. Cloudflare's point-in-time recovery keeps a deleted object's storage
+for 30 days, which the privacy text has to say.
+
+### Cursors, tombstones and the start-over
+
+A pull after `since=N` tells the household that device holds everything up to N, and the device's
+`acked_seq` moves up to it — a number, never a time, and never past the head. Once a day each
+household's alarm removes the tombstones that every device has read and that are more than 90 days
+old by their own stamp; live rows are never touched. A device that has been behind so long that
+the first row it has not read is 180 days old is no longer waited for, which is judged from stamps
+already in the table rather than from anything kept per device. `meta.horizon` is the highest seq
+a tombstone was removed at, every pull returns it, and a pull that is not `live=1` with
+`since` below it answers `410 {code: "resync_required", horizon}`. The client starts over with
+`since=0&live=1`, which leaves out tombstones at or below the horizon and sends the rest, because
+one above it may be the deletion of a row the walk already handed over. Since deleted rows are not
+sent, a client that starts over must treat what it receives as everything that is live and drop
+the synced rows that are not in it, keeping only what it has not yet published.
+
+Compaction is the one thing here that makes an old client's pull fail: a Worker that has purged
+something answers a device that re-pulls from zero (a new pairing, a `SYNC_READ_VERSION` bump)
+with a 410 until that client learns `live=1`. Ship the client first, then deploy `sync/`.
+
+### The household schema
+
+Each household is its own SQLite database inside a Durable Object, so a deploy cannot migrate
+them together: every object takes the steps it is missing the next time it wakes, and one nobody
+opened for months may be several behind. The steps are `MIGRATIONS` in `sync/src/migrations.ts`,
+numbered 1, 2, 3 … and recorded in `_sql_schema_migrations` in the same transaction that runs
+them. A step is never edited once it has shipped, and it only adds: no `DROP`, no rename, no
+deleted rows — the ledger is ciphertext no rescan can rebuild, which is why `durable.db` has the
+same rule. To change the schema, append a step and add the dump of the schema before it to
+`sync/test/schemas/`; `test/migrations.test.ts` wakes a household left at each dump and reads its
+ledger back over the ordinary pull.
+
 ### Deploying
 
 ```bash
@@ -749,6 +794,20 @@ cd sync && pnpm run deploy        # builds ../pwa first; refuses uncommitted cha
 
 `sync.muchtoman.com`, custom domain only — `workers.dev` is DNS-sinkholed inside Iran, same as
 for the rates Worker.
+
+```bash
+cd sync && pnpm run deploy:staging   # same guard and PWA build, to muchtoman-sync-staging
+cd sync && pnpm run tail:staging
+```
+
+Staging is `env.staging` in `sync/wrangler.jsonc`: its own Worker name, its own Durable Object
+namespace (so its households are not production's), its own rate-limit counters, and the custom
+domain `staging-sync.muchtoman.com` — never `workers.dev`. It reads rates from the real rates
+Worker. `pnpm run check` dry-runs both environments, so a broken staging block fails CI, but
+nothing here has deployed it: the first `deploy:staging` creates the Worker and attaches the
+domain, and the zone must be able to host `staging-sync.muchtoman.com`. To point a client at it,
+Android takes `-Pmuchtoman.syncUrl=https://staging-sync.muchtoman.com`; `billing/` gets the same
+block when it exists.
 
 ## September 2026 review fixes
 
