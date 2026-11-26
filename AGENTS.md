@@ -57,6 +57,11 @@ change needs both the Gradle and the pwa blocks run.
 - **Teaching clients to read a new record shape bumps `SYNC_READ_VERSION`** (`Sync.kt` and
   `pwa/src/sync.ts` together). An older client drops what it cannot open and moves its cursor
   past it; the bump makes every updated client pull the household once from the start.
+- **The vault and the family never mix.** Raw bank messages, and every other vault-only kind, go
+  only into a household of type `personal`, sealed with the vault key; the family gets projections.
+  The server enforces it (`sync/src/kinds.ts`), and no client relies on that to be right.
+- **Never delete a vault on its own.** No expiry for being unused, no plan ending, no last device
+  leaving: only `/v1/destroy`. A plan limit refuses new things and removes nothing (`PRODUCT.md`).
 - **Never point anything at `workers.dev`.** Iran DNS-sinkholes the whole domain; the custom
   domains (`rates.muchtoman.com`, `sync.muchtoman.com`) are the product's lifeline.
 - **Persian copy is the interface**: casual register, Persian digits, words carry warnings and

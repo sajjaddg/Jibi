@@ -47,6 +47,30 @@ with the required Persian coverage; tightness comes off the width axis, never tr
 - Charts run left-to-right even in RTL (Iranian bank-app convention).
 - Light and dark are both first-class, following the system by default.
 
+## Sync and the vault (decided 2026-11-26, #15)
+
+Her own whole state — everything the encrypted backup carries — can be kept in step across her own
+devices, through a **vault**: a household with one person in it, on the same service the family
+ledger uses. The family stays what it was, a separate place holding only what members share.
+
+- **Optional and off until she turns it on**, like sharing SMS. The app is complete without it.
+- **Free for up to two devices.** Losing data is a harm, not a luxury to sell.
+- **Raw bank messages go into the vault and never into the family.** A second device needs them to
+  re-read with a newer parser.
+- **No account.** A vault is a random id and the keys on her devices. No e-mail, number or password.
+- **What the server holds:** the random ids of the vault, its devices and its one member; a hash of
+  each device's token and of the recovery secret; the day each device joined; and for each record an
+  opaque id, its kind, scope, order, time of writing, size and ciphertext. The id of a record made
+  from a bank message is a hash of that message.
+- **What it cannot read:** amounts, balances, message text, names, merchants, categories, notes. The
+  key never leaves her devices, not even wrapped in a passphrase.
+- **Recovery is the kit and nothing else** (`vault id + recovery secret + vault key`, as a QR code,
+  as text, and inside the backup file). With no kit and no device, nothing comes back, and the app
+  says so in words.
+- **Never deleted for being unused.** Only `/v1/destroy`, which she asks for with two taps, removes
+  a vault; its last device cannot simply be revoked. After that, Cloudflare's own point-in-time
+  recovery may hold it for up to 30 days, and the privacy text says so.
+
 ## Brand commitment (2026-08-21 redesign)
 
 **Wise design language, adapted to Persian** (user-pinned): forest green `#163300` +
