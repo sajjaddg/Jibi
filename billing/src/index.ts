@@ -13,6 +13,8 @@
  * cache-control and nosniff, and single-line structured console.error.
  */
 
+import { errorCodeOf, measure } from './metrics';
+
 function jsonResponse(payload: unknown, status = 200, cacheControl = 'no-store'): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -34,7 +36,7 @@ async function throttled(limiter: RateLimit, request: Request): Promise<boolean>
   return ip != null && !(await limiter.limit({ key: ip })).success;
 }
 
-export default {
+const handler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const path = new URL(request.url).pathname;
     try {
@@ -54,5 +56,14 @@ export default {
       console.error(JSON.stringify({ message: 'billing failed', error: errorMessage(error) }));
       return jsonResponse({ code: 'internal' }, 500);
     }
+  },
+};
+
+/** Every answer is counted, by endpoint, status, client version and error code, and nothing else (./metrics.ts). */
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const response = await handler.fetch(request, env);
+    measure(env.METRICS, request, response.status, await errorCodeOf(response));
+    return response;
   },
 };
