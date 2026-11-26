@@ -28,6 +28,7 @@ import {
   effectivePlan, PLAN_LIMITS_ENFORCED, QUOTAS, type HouseholdType, type Plan, type Quota, type StoredPlan,
 } from './plans';
 import { effectiveRoles, isRole, ROLES_RESTRICT_MEMBERS, type Role } from './roles';
+import { importPublicKeys, verifyEntitlement } from './entitlement';
 
 const MAX_SYNC_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 500;
@@ -628,6 +629,7 @@ export class Household extends DurableObject<Env> {
       if (path === '/roles' && request.method === 'GET') return await this.listRoles(request);
       if (path === '/invites' && request.method === 'GET') return await this.invites(request);
       if (path === '/invites_cancel' && request.method === 'POST') return await this.cancelInvite(request);
+      if (path === '/entitlement' && request.method === 'POST') return await this.entitlement(request);
       return textResponse('not found\n', 404);
     } catch (error) {
       if (error instanceof BodyTooLargeError) return jsonResponse({ code: 'body_too_large' }, 413);
@@ -1455,6 +1457,37 @@ export class Household extends DurableObject<Env> {
   }
 
   /**
+   * A member shows the household a signed entitlement and it takes the plan (#48). Any member
+   * may, read-only included: it is their money. The one that runs longest stands, so showing an
+   * older one changes nothing.
+   *
+   * Nothing of the license is known here, and the slot is kept only hashed under a label of this
+   * side's own, so this database and billing's have no value in common.
+   */
+  private async entitlement(request: Request): Promise<Response> {
+    const secretHash = await this.credential(request);
+    const body = await readJson(request, 4096);
+    const keys = await importPublicKeys(this.env.ENTITLEMENT_PUBLIC_KEYS ?? '');
+    const token = typeof body.entitlement === 'string' ? body.entitlement : '';
+    const verdict = await verifyEntitlement(token, keys, Date.now());
+    const slot = verdict.ok ? await sha256Hex(`mt1.do-slot|${verdict.claims.slot}`) : '';
+    this.authorise(secretHash);
+    // No key configured is the server's fault, and must not read to her as a bad purchase.
+    if (keys.length === 0) throw new SyncError('unavailable', 503);
+    if (!verdict.ok) {
+      if (verdict.reason === 'expired') throw new SyncError('expired_entitlement', 409);
+      throw new SyncError('invalid_entitlement', 400);
+    }
+    const row = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'plan')][0];
+    const stored = row ? JSON.parse(row.v) as StoredPlan : null;
+    const best: StoredPlan = stored && stored.exp >= verdict.claims.exp
+      ? stored
+      : { plan: 'pro', exp: verdict.claims.exp, slot };
+    if (best !== stored) this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'plan', JSON.stringify(best));
+    return jsonResponse({ plan: this.plan(Date.now()), exp: best.exp });
+  }
+
+  /**
    * Who holds a token here: each device, by member and the moment it joined. The phones draw
    * people from their profiles, so one that paired and never published a profile reads the
    * household like anyone else and shows up in nobody's list — this is how the others see it.
@@ -1511,7 +1544,7 @@ async function throttled(limiter: RateLimit, request: Request, key: (ip: string)
 /** The calls that change who is in a household, rather than what it holds. */
 const MEMBERSHIP_ROUTES = new Set([
   'invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate', 'recovery_rotate', 'role',
-  'invites_cancel',
+  'invites_cancel', 'entitlement',
 ]);
 
 /**

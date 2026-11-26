@@ -1,5 +1,9 @@
 import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
+
+/** The test key's public half, so entitlements signed in a test verify. */
+const testKey = (JSON.parse(readFileSync('../billing/test/vectors/valid.json', 'utf8')) as { keys: string[] }).keys[0];
 
 /**
  * Runs the real Worker and real Durable Objects under workerd, so the tests exercise the same
@@ -17,7 +21,7 @@ export default defineConfig({
       // Compaction ships switched off (wrangler.jsonc); the tests run it, and
       // test/compaction.test.ts switches it back off to check what «off» does.
       // CHURN=full runs test/churn.test.ts at the volume docs/backend-plan.md reports.
-      miniflare: { bindings: { COMPACTION: 'on', CHURN: process.env.CHURN ?? '' } },
+      miniflare: { bindings: { COMPACTION: 'on', CHURN: process.env.CHURN ?? '', ENTITLEMENT_PUBLIC_KEYS: testKey } },
     }),
   ],
 });

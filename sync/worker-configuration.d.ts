@@ -10,6 +10,7 @@ interface __BaseEnv_Env {
 	ASSETS: Fetcher;
 	RATES_ORIGIN: "https://rates.muchtoman.com";
 	COMPACTION: "off";
+	ENTITLEMENT_PUBLIC_KEYS: "";
 	HOUSEHOLD: DurableObjectNamespace<import("./src/index").Household>;
 }
 declare namespace Cloudflare {
@@ -24,7 +25,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "RATES_ORIGIN" | "COMPACTION">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "RATES_ORIGIN" | "COMPACTION" | "ENTITLEMENT_PUBLIC_KEYS">> {}
 }
 
 // Begin runtime types
