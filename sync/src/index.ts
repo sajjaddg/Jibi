@@ -666,8 +666,14 @@ export class Household extends DurableObject<Env> {
    * written down: a number, never a time. It only moves forward, which also means an idle poll
    * writes nothing, and it cannot pass the head, so one device cannot claim to have read what does
    * not exist yet and let the horizon run ahead on its word.
+   *
+   * A `since` no cursor can reach is not a read at all: both released clients ask `since=<largest
+   * number they have>` to learn whether their token still works (Sync.kt, sync.ts
+   * `sessionRejected`), and taken as an acknowledgement that would mark everything as read by a
+   * phone that was only checking the door.
    */
   private acknowledge(deviceId: string, since: number): void {
+    if (since >= Number.MAX_SAFE_INTEGER) return;
     const acked = Math.floor(Math.min(since, this.head()));
     if (acked > 0) this.sql.exec('UPDATE device SET acked_seq = ? WHERE id = ? AND acked_seq < ?', acked, deviceId, acked);
   }

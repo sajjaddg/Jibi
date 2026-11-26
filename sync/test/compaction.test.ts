@@ -98,6 +98,16 @@ describe('what a device has read', () => {
     expect(await inside(a.hid, acked)).toEqual({ [a.deviceId]: 3 });
   });
 
+  it('is not moved by the clients’ token check, which asks past every number there is', async () => {
+    const a = await claim(freshHid());
+    await buryOne(a, 299 * DAY);
+    // Android sends Long.MAX_VALUE, the PWA Number.MAX_SAFE_INTEGER.
+    for (const since of ['9223372036854775807', String(Number.MAX_SAFE_INTEGER)]) {
+      expect((await pull(a, `since=${since}&limit=1`)).status).toBe(200);
+    }
+    expect(await inside(a.hid, acked)).toEqual({ [a.deviceId]: 0 });
+  });
+
   it('is all the household keeps about when: no timestamp of a device appears anywhere in its tables', async () => {
     const a = await claim(freshHid());
     await buryOne(a, 100 * DAY);
