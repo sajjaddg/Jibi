@@ -6,6 +6,7 @@
     "dev": "wrangler dev",
     "deploy": "sh ../tools/deploy-guard.sh sync pwa && pnpm --dir ../pwa install --frozen-lockfile && pnpm --dir ../pwa run build && wrangler deploy --message \"$(git rev-parse --short HEAD)\"",
     "deploy:staging": "sh ../tools/deploy-guard.sh sync pwa && pnpm --dir ../pwa install --frozen-lockfile && pnpm --dir ../pwa run build && wrangler deploy --env staging --message \"$(git rev-parse --short HEAD)\"",
+    "loadtest": "node loadtest/run.mjs",
     "tail": "wrangler tail",
     "tail:staging": "wrangler tail --env staging",
     "typecheck": "tsc --noEmit",
