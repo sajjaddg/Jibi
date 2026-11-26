@@ -6,6 +6,7 @@ interface __BaseEnv_Env {
 	CLAIM_LIMIT: RateLimit;
 	API_LIMIT: RateLimit;
 	MEMBERSHIP_LIMIT: RateLimit;
+	RECOVER_LIMIT: RateLimit;
 	ASSETS: Fetcher;
 	RATES_ORIGIN: "https://rates.muchtoman.com";
 	COMPACTION: "off";

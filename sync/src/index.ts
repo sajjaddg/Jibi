@@ -261,6 +261,8 @@ function asRecords(value: unknown): PushRecord[] {
 }
 
 const IDENTITY = /^[a-f0-9]{16,64}$/;
+/** 32 random bytes in hex, made on the client: the recovery secret, and a rotation's new one. */
+const SECRET = /^[a-f0-9]{64}$/;
 
 function identity(value: unknown, fallback: () => string): string {
   return typeof value === 'string' && IDENTITY.test(value) ? value : fallback();
@@ -406,6 +408,76 @@ export class Household extends DurableObject<Env> {
     if (this.type() === 'personal') throw new SyncError('forbidden_type', 403);
   }
 
+  /** Only the hash is ever kept: the secret itself is in her recovery kit and nowhere here. */
+  private saveRecovery(hash: string): void {
+    this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'recovery_hash', hash);
+  }
+
+  /**
+   * Every phone lost: the recovery kit enrols a new one (`POST /v1/recover`). Every way of failing
+   * is the same 404 — no household, a family, a vault with no kit, a wrong or a replaced secret —
+   * so nobody learns which. The device cap holds; a full vault answers with its devices, and the
+   * same call naming one in `revoke` swaps it for the new one, since a person with no phone left
+   * has no token to revoke with.
+   */
+  private async recover(request: Request): Promise<Response> {
+    const body = await readJson(request, 4096);
+    const offered = typeof body.recovery === 'string' ? body.recovery : '';
+    const offeredHash = await sha256Hex(offered);
+    const secret = randomToken();
+    const secretHash = await sha256Hex(secret);
+    // Nothing below awaits, as in `pair`.
+    if (!this.claimed || this.type() !== 'personal') throw new SyncError('not_recoverable', 404);
+    const stored = [...this.sql.exec<{ v: string }>('SELECT v FROM meta WHERE k = ?', 'recovery_hash')][0];
+    if (!stored || !SECRET.test(offered) || !timingSafeEqual(stored.v, offeredHash)) {
+      throw new SyncError('not_recoverable', 404);
+    }
+    const devices = [...this.sql.exec<{ id: string; scopes: string; added_at: number }>(
+      'SELECT id, scopes, added_at FROM device ORDER BY added_at, id',
+    )];
+    const deviceId = identity(body.deviceId, () => randomToken(16));
+    const revoke = typeof body.revoke === 'string' ? body.revoke : '';
+    if (revoke && !devices.some((d) => d.id === revoke)) throw new SyncError('unknown_device', 404);
+    if (devices.some((d) => d.id === deviceId && d.id !== revoke)) throw new SyncError('identity_exists', 409);
+    if (!revoke && devices.length >= MAX_DEVICES) {
+      return jsonResponse({ code: 'too_many_devices', devices: devices.map((d) => ({ id: d.id, addedAt: d.added_at })) }, 409);
+    }
+    const scopes = [...new Set(devices.flatMap((d) => JSON.parse(d.scopes) as string[]))];
+    const memberId = this.primaryMember();
+    const now = Date.now();
+    this.ctx.storage.transactionSync(() => {
+      if (revoke) {
+        this.sql.exec('DELETE FROM device WHERE id = ?', revoke);
+        // As on any revocation: a code the lost phone showed must not outlive it.
+        this.sql.exec('DELETE FROM pairing');
+      }
+      this.sql.exec(
+        'INSERT INTO device (id, member_id, identity_locked, token_hash, scopes, added_at, last_seen) ' +
+          'VALUES (?, ?, 1, ?, ?, ?, ?)',
+        deviceId,
+        memberId,
+        secretHash,
+        JSON.stringify(scopes),
+        now,
+        now,
+      );
+    });
+    return jsonResponse({ secret, scopes, memberId, deviceId });
+  }
+
+  /** A new kit replaces the old one: from this turn the old secret recovers nothing. */
+  private async rotateRecovery(request: Request): Promise<Response> {
+    const secretHash = await this.credential(request);
+    const body = await readJson(request, 4096);
+    const next = typeof body.recovery === 'string' && SECRET.test(body.recovery) ? body.recovery : null;
+    const nextHash = next ? await sha256Hex(next) : null;
+    this.authorise(secretHash);
+    if (this.type() !== 'personal') throw new SyncError('forbidden_type', 403);
+    if (!nextHash) throw new SyncError('invalid_recovery', 400);
+    this.saveRecovery(nextHash);
+    return jsonResponse({ rotated: true });
+  }
+
   /**
    * The founder: the member who claimed the household. Recorded at claim; a household created
    * before this existed backfills lazily from its oldest device row, which is the claimer's.
@@ -460,6 +532,9 @@ export class Household extends DurableObject<Env> {
 
     try {
       if (path === '/claim' && request.method === 'POST') return await this.claim(request);
+      // Before the check below: a caller with no token must not learn from the answer whether
+      // there is a household here at all.
+      if (path === '/recover' && request.method === 'POST') return await this.recover(request);
       if (!this.claimed) return jsonResponse({ code: 'unauthorised' }, 401);
       if (path === '/invite' && request.method === 'POST') return await this.invite(request);
       if (path === '/pair' && request.method === 'POST') return await this.pair(request);
@@ -472,6 +547,7 @@ export class Household extends DurableObject<Env> {
       if (path === '/destroy' && request.method === 'POST') return await this.destroy(request);
       if (path === '/revoke' && request.method === 'POST') return await this.revoke(request);
       if (path === '/rotate' && request.method === 'POST') return await this.rotate(request);
+      if (path === '/recovery_rotate' && request.method === 'POST') return await this.rotateRecovery(request);
       if (path === '/devices' && request.method === 'GET') return await this.devices(request);
       return textResponse('not found\n', 404);
     } catch (error) {
@@ -491,6 +567,12 @@ export class Household extends DurableObject<Env> {
     // Absent is `family`, which is what every released client claims without saying.
     const type = body.type ?? 'family';
     if (type !== 'family' && type !== 'personal') throw new SyncError('invalid_type', 400);
+    // Refused rather than ignored: a caller that sends one believes it can be recovered.
+    if (body.recovery !== undefined) {
+      if (type !== 'personal') throw new SyncError('forbidden_type', 403);
+      if (typeof body.recovery !== 'string' || !SECRET.test(body.recovery)) throw new SyncError('invalid_recovery', 400);
+    }
+    const recoveryHash = typeof body.recovery === 'string' ? await sha256Hex(body.recovery) : null;
     const memberId = identity(body.memberId, () => randomToken(16));
     const deviceId = identity(body.deviceId, () => randomToken(16));
     const secret = randomToken();
@@ -520,6 +602,7 @@ export class Household extends DurableObject<Env> {
     // Written once, here, and only for a vault: a household without the row is a family, which
     // covers every one made before there were two kinds without touching any of them.
     if (type === 'personal') this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'type', type);
+    if (recoveryHash) this.saveRecovery(recoveryHash);
     if (this.compacting()) await this.ctx.storage.setAlarm(now + COMPACT_EVERY_MS);
     return jsonResponse({ secret, memberId, deviceId });
   }
@@ -1186,9 +1269,12 @@ export class Household extends DurableObject<Env> {
    */
   private async devices(request: Request): Promise<Response> {
     this.authorise(await this.credential(request));
-    const devices = [...this.sql.exec<{ member_id: string; token_hash: string; added_at: number }>(
-      'SELECT member_id, token_hash, added_at FROM device ORDER BY added_at, id',
-    )].map((row) => ({ memberId: memberOf(row), addedAt: row.added_at }));
+    // A vault's devices are all one member, so it is the device id that tells them apart, and
+    // what `revoke` needs. A family's are told apart by member, as before.
+    const vault = this.type() === 'personal';
+    const devices = [...this.sql.exec<{ id: string; member_id: string; token_hash: string; added_at: number }>(
+      'SELECT id, member_id, token_hash, added_at FROM device ORDER BY added_at, id',
+    )].map((row) => ({ ...(vault ? { id: row.id } : {}), memberId: memberOf(row), addedAt: row.added_at }));
     return jsonResponse({ devices });
   }
 
@@ -1230,7 +1316,9 @@ async function throttled(limiter: RateLimit, request: Request, key: (ip: string)
 }
 
 /** The calls that change who is in a household, rather than what it holds. */
-const MEMBERSHIP_ROUTES = new Set(['invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate']);
+const MEMBERSHIP_ROUTES = new Set([
+  'invite', 'pair', 'identity', 'remove', 'leave', 'destroy', 'revoke', 'rotate', 'recovery_rotate',
+]);
 
 /**
  * The page's policy, for the one asset response this Worker hands out: index.html at a path that
@@ -1380,6 +1468,22 @@ const handler = {
         return jsonResponse(helloAnonymous(), 200, 'public, max-age=60');
       }
 
+      // The one call with no token at all: the household is named in the body, and what proves the
+      // caller is the recovery secret, which only the object can check. Throttled harder than
+      // anything else, by address and by household, being the one place a long-lived secret is
+      // offered.
+      if (path === '/v1/recover' && request.method === 'POST') {
+        if (await throttled(env.API_LIMIT, request, (ip) => ip)) return rateLimited();
+        if (await throttled(env.RECOVER_LIMIT, request, (ip) => `ip:${ip}`)) return rateLimited();
+        const body = await readJson(request, 4096);
+        const hid = typeof body.hid === 'string' ? body.hid : '';
+        if (!/^[a-f0-9]{16,64}$/.test(hid)) return jsonResponse({ code: 'invalid_hid' }, 400);
+        if (await throttled(env.RECOVER_LIMIT, request, () => `hid:${hid}`)) return rateLimited();
+        return await env.HOUSEHOLD.getByName(hid).fetch(
+          new Request('https://household/recover', { method: 'POST', body: JSON.stringify(body) }),
+        );
+      }
+
       if (path.startsWith('/v1/')) {
         const token = splitToken(
           request.headers.get('authorization') ?? request.headers.get('x-muchtoman-token'),
@@ -1419,6 +1523,8 @@ const handler = {
       for (const [name, value] of Object.entries(ASSET_HEADERS)) headers.set(name, value);
       return new Response(asset.body, { status: asset.status, headers });
     } catch (error) {
+      if (error instanceof BodyTooLargeError) return jsonResponse({ code: 'body_too_large' }, 413);
+      if (error instanceof SyncError) return jsonResponse({ code: error.code }, error.status);
       console.error(JSON.stringify({ message: 'sync failed', error: errorMessage(error) }));
       return jsonResponse({ code: 'internal' }, 500);
     }

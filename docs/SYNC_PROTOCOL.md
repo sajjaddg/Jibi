@@ -158,7 +158,9 @@ replacing the placeholder in its golden vector.
 <!-- endpoints -->
 | Call | Body | Answer |
 |---|---|---|
-| `POST /v1/claim?hid=` | `{scopes, memberId?, deviceId?, type?}` | `{secret, memberId, deviceId}` — once per household |
+| `POST /v1/claim?hid=` | `{scopes, memberId?, deviceId?, type?, recovery?}` | `{secret, memberId, deviceId}` — once per household |
+| `POST /v1/recover` | `{hid, recovery, deviceId?, revoke?}` | `{secret, scopes, memberId, deviceId}` — no token |
+| `POST /v1/recovery/rotate` | `{recovery}` | `{rotated: true}`; the old secret stops at once |
 | `POST /v1/invite` | `{scopes?}` | `{code, expiresIn}` — a one-time code, ten minutes; at most 16 outstanding |
 | `POST /v1/pair` | `{code, memberId?, deviceId?}` | `{secret, scopes, memberId, deviceId}` |
 | `POST /v1/identity` | `{memberId, deviceId}` | the same — one rebinding for a token older than identity |
@@ -170,7 +172,7 @@ replacing the placeholder in its golden vector.
 | `POST /v1/destroy` | `{}` | `{destroyed: true}` |
 | `POST /v1/revoke` | `{device}` or `{member}` | `{revoked}`; every outstanding code dies |
 | `POST /v1/rotate` | `{secret?}` | `{secret}`; the old one stops at once |
-| `GET /v1/devices` | — | `{devices: [{memberId, addedAt}]}` |
+| `GET /v1/devices` | — | `{devices: [{memberId, addedAt}]}`; a vault's also carry `id` |
 <!-- /endpoints -->
 
 `pair` is the one call a device makes before it has a secret: it sends `<hid>.` followed by 64
@@ -181,6 +183,19 @@ is the oldest build (`versionCode`) that should sync; 0 is no floor.
 
 A client may check whether its token still works with `since` set to the largest number it has.
 That is answered normally and does **not** count as having read anything.
+
+### Recovery (vaults only)
+
+`recovery` is 32 random bytes in hex, made on the client, given at `claim` and kept in her kit
+beside the `hid` and the vault key. The server stores only its SHA-256. Sending it to a family's
+claim is `403 forbidden_type`.
+
+`recover` with it enrols a new device as the vault's member. Every failure — no such household, a
+family, no kit, a wrong or replaced secret — is `404 not_recoverable`. The device limit applies: a
+full vault answers `409 {code: "too_many_devices", devices: [{id, addedAt}]}`, and the same call
+with `revoke: <id>` swaps that device for the new one. `revoke` may be sent even when there is room.
+
+`recover` is limited to 5 a minute per address and per household.
 
 ### Push
 
@@ -268,6 +283,7 @@ Last write wins, on the server and again on each client.
 | `invalid_since` | 400 | |
 | `invalid_limit` | 400 | |
 | `invalid_secret` | 400 | a rotation secret that is not 64 hex |
+| `invalid_recovery` | 400 | a recovery secret that is not 64 hex |
 | `invalid_member_tombstone` | 400 | `remove`/`leave` record does not bury that member |
 | `invalid_hid` | 400 | |
 | `unauthorised` | 401 | no token, or not one of this household's |
@@ -277,6 +293,8 @@ Last write wins, on the server and again on each client.
 | `forbidden_primary` | 403 | only the founder may, or nobody may do this to the founder |
 | `forbidden_type` | 403 | a call that is not for this type of household |
 | `unknown_member` | 404 | |
+| `not_recoverable` | 404 | § 4, recovery |
+| `unknown_device` | 404 | `revoke` names no device of this vault |
 | `already_claimed` | 409 | |
 | `identity_exists` | 409 | `pair` with an id somebody has had |
 | `identity_locked` | 409 | |
