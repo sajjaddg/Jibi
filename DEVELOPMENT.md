@@ -773,8 +773,8 @@ for 30 days, which the privacy text has to say.
 ### Cursors, tombstones and the start-over
 
 A pull after `since=N` tells the household that device holds everything up to N, and the device's
-`acked_seq` moves up to it — a number, never a time, and never past the head. Once a day each
-household's alarm removes the tombstones that every device has read and that are more than 90 days
+`acked_seq` moves up to it — a number, never a time, and never past the head. With compaction on
+(below), once a day each household's alarm removes the tombstones that every device has read and that are more than 90 days
 old by their own stamp; live rows are never touched. A device that has been behind so long that
 the first row it has not read is 180 days old is no longer waited for, which is judged from stamps
 already in the table rather than from anything kept per device. `meta.horizon` is the highest seq
@@ -787,7 +787,12 @@ the synced rows that are not in it, keeping only what it has not yet published.
 
 Compaction is the one thing here that makes an old client's pull fail: a Worker that has purged
 something answers a device that re-pulls from zero (a new pairing, a `SYNC_READ_VERSION` bump)
-with a 410 until that client learns `live=1`. Ship the client first, then deploy `sync/`.
+with a 410 until that client learns `live=1`. So it ships **switched off**: `COMPACTION` in
+`sync/wrangler.jsonc` is `"off"`, and while it is, no alarm is set, nothing is purged, the horizon
+stays 0 and nobody is ever answered 410. Turn it to `"on"` (and deploy) only once the Android and
+PWA builds that handle the 410 are released and in use; households pick the alarm up the next time
+they wake. Turning it off again stops further purging but not the 410 for what is already gone.
+Staging has its own switch and can go first.
 
 ### The household schema
 

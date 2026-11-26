@@ -338,9 +338,20 @@ export class Household extends DurableObject<Env> {
       ctx.blockConcurrencyWhile(async () => {
         this.migrate();
         // A household made before compaction has no alarm; it gets one the first time it wakes.
-        if ((await ctx.storage.getAlarm()) === null) await ctx.storage.setAlarm(Date.now() + COMPACT_EVERY_MS);
+        if (this.compacting() && (await ctx.storage.getAlarm()) === null) {
+          await ctx.storage.setAlarm(Date.now() + COMPACT_EVERY_MS);
+        }
       });
     }
+  }
+
+  /**
+   * The `COMPACTION` switch (wrangler.jsonc), off unless it says exactly «on». It holds back the
+   * purge and the alarm that runs it, and nothing else: a household already compacted keeps its
+   * horizon and keeps saying 410, because the deletions it would otherwise hide are gone.
+   */
+  private compacting(): boolean {
+    return String(this.env.COMPACTION) === 'on';
   }
 
   /**
@@ -486,7 +497,7 @@ export class Household extends DurableObject<Env> {
       now,
     );
     this.sql.exec('INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)', 'primary_member', memberId);
-    await this.ctx.storage.setAlarm(now + COMPACT_EVERY_MS);
+    if (this.compacting()) await this.ctx.storage.setAlarm(now + COMPACT_EVERY_MS);
     return jsonResponse({ secret, memberId, deviceId });
   }
 
@@ -716,9 +727,12 @@ export class Household extends DurableObject<Env> {
     return { purged, capped: purged >= MAX_PURGE_PER_RUN };
   }
 
-  /** The daily compaction. A household that has been closed since the alarm was set does nothing and is not woken again. */
+  /**
+   * The daily compaction. A household that has been closed since the alarm was set — or one woken
+   * after the switch went off again — does nothing and is not woken again.
+   */
   async alarm(): Promise<void> {
-    if (!this.claimed) return;
+    if (!this.claimed || !this.compacting()) return;
     let wait = COMPACT_EVERY_MS;
     try {
       if (this.compact(Date.now()).capped) wait = COMPACT_RESUME_MS;

@@ -14,6 +14,9 @@ export default defineConfig({
     cloudflareTest({
       singleWorker: true,
       wrangler: { configPath: './wrangler.jsonc' },
+      // Compaction ships switched off (wrangler.jsonc); the tests run it, and
+      // test/compaction.test.ts switches it back off to check what «off» does.
+      miniflare: { bindings: { COMPACTION: 'on' } },
     }),
   ],
 });

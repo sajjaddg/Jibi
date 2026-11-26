@@ -6,7 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
 
   "vars": {
-    "RATES_ORIGIN": "https://rates.muchtoman.com"
+    "RATES_ORIGIN": "https://rates.muchtoman.com",
+    // Whether the daily alarm removes old tombstones (src/index.ts `compact`). Once one is gone, a
+    // device that is behind is answered `410 resync_required`, which a client that does not know
+    // `live=1` cannot get past: it stops syncing. So «off» until the Android and PWA builds that
+    // handle the 410 are out and in use (#21); only the exact word «on» turns it on.
+    "COMPACTION": "off"
   },
 
   // Deliberately a second Worker rather than another route on muchtoman-rates. The rates
@@ -64,7 +69,8 @@
   "env": {
     "staging": {
       "name": "muchtoman-sync-staging",
-      "vars": { "RATES_ORIGIN": "https://rates.muchtoman.com" },
+      // Staging may be turned on first, to try a client's start-over against it.
+      "vars": { "RATES_ORIGIN": "https://rates.muchtoman.com", "COMPACTION": "off" },
       "routes": [{ "pattern": "staging-sync.muchtoman.com", "custom_domain": true }],
       "workers_dev": false,
       "assets": {
