@@ -1,0 +1,11 @@
+{
+  "name": "entitlement",
+  "kind": "entitlement",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "entitlement:00112233445566778899aabbccddeeff",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|entitlement|entitlement:00112233445566778899aabbccddeeff",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "ARZ2ozt6DDInMo2D",
+  "plaintext": "{\"kind\":\"entitlement\"}",
+  "body": "6JKwDcHOWl3EULWvwnBPULlok+iLaGv47QvxyYKi7kK8YaTSKmo="
+}

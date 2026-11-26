@@ -1,0 +1,11 @@
+{
+  "name": "link",
+  "kind": "link",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "link:1",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|link|link:1",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "KE9UTZ6/Df8EimUn",
+  "plaintext": "{\"kind\":\"link\"}",
+  "body": "bt/U08Bg71+9fel3gpvxcflFaZ7FqIpo3bp12PQJoA=="
+}

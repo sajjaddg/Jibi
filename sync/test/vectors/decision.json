@@ -1,0 +1,11 @@
+{
+  "name": "decision",
+  "kind": "decision",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "decision:s:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7:0:category",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|decision|decision:s:d970c62144fca5bb9b4c8bede76b6972d45085f96bf6fdfca92ec579a9bb52a7:0:category",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "e7GhGEwpl59Xiu51",
+  "plaintext": "{\"kind\":\"decision\"}",
+  "body": "4ZQAztzsrJ64HCAptlVFW/qaHTV6EAl06lPqwkkwMg1Wkbg="
+}

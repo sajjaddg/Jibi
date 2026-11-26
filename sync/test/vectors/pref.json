@@ -1,0 +1,11 @@
+{
+  "name": "pref",
+  "kind": "pref",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "pref:quipTone",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|pref|pref:quipTone",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "AgLk10NKc11zw15+",
+  "plaintext": "{\"kind\":\"pref\"}",
+  "body": "3/Uz3f3PSd6u46PmqQq8+p7MQfLjMpvceZRcSZdFoQ=="
+}

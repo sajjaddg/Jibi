@@ -84,6 +84,18 @@ const CASES = [
   },
 ];
 
+// The vault kinds. Their payloads are not designed yet (docs/SYNC_PROTOCOL.md § 3), so each is a
+// placeholder: what these pin is the AAD and the id's namespace.
+const VAULT = {
+  sms: sha256Hex('a bank message'), manual_txn: 'm:018f0000-0000-7000-8000-0000000000cc', anchor: '1',
+  rule: '1', decision: `${LOCAL_REF}:category`, link: '1', holding: 'gold18', bank: 'SAMAN',
+  loan_person: '018f0000-0000-7000-8000-0000000000dd', override: 'usd', day: '2026-11-26',
+  pref: 'quipTone', entitlement: '00112233445566778899aabbccddeeff',
+};
+for (const [kind, key] of Object.entries(VAULT)) {
+  CASES.push({ name: kind, kind, id: `${kind}:${key}`, scope: `vault:${HID}`, payload: { kind } });
+}
+
 function vector({ name, kind, id, payload, unbound = false, scope = SCOPE }) {
   const key = sha256(`muchtoman sync vector key|${scope}`);
   const nonce = sha256(`muchtoman sync vector nonce|${name}`).subarray(0, 12);

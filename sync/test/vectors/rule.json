@@ -1,0 +1,11 @@
+{
+  "name": "rule",
+  "kind": "rule",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "rule:1",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|rule|rule:1",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "mbMqXcZZjbdjyhC3",
+  "plaintext": "{\"kind\":\"rule\"}",
+  "body": "5tmLEpJP/RHhAO5AnuIiaUle15psQ+WQj9lNaVzqIw=="
+}

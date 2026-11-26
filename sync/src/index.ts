@@ -21,7 +21,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
-import { isKind, KINDS, reservedKind, type Kind } from './kinds';
+import { isKind, isVaultOnly, KINDS, reservedKind, type Kind } from './kinds';
 import { runMigrations } from './migrations';
 import { errorCodeOf, measure, routeOf } from './metrics';
 
@@ -866,9 +866,20 @@ export class Household extends DurableObject<Env> {
     let counts = this.counts();
     const maxStamp = Date.now() + MAX_STAMP_SKEW_MS;
     const clamped: { id: string; updatedAt: number }[] = [];
+    // Refused one at a time, unlike everything else here: the rest of the batch is her ledger and
+    // must not wait on a record that will never be taken.
+    const rejected: { id: string; code: string }[] = [];
+    const vault = this.type() === 'personal';
     try {
       for (const record of records) {
         if (!auth.scopes.includes(record.scope)) throw new SyncError('forbidden_scope', 403);
+        if (isVaultOnly(record.kind)) {
+          if (!vault) {
+            rejected.push({ id: record.id, code: 'kind_not_allowed' });
+            continue;
+          }
+          if (!record.id.startsWith(`${record.kind}:`)) throw new SyncError('invalid_id', 400);
+        }
         const reserved = reservedKind(record.id);
         if (reserved && record.kind !== reserved) throw new SyncError('invalid_kind', 400);
         if (record.kind === 'member') {
@@ -982,7 +993,13 @@ export class Household extends DurableObject<Env> {
         this.saveCounts(counts);
       }
     }
-    return jsonResponse({ seq, accepted: records.length, clamped });
+    return jsonResponse({
+      seq,
+      accepted: records.length - rejected.length,
+      clamped,
+      // Only when there is something to say, so the answer to every released client is as it was.
+      ...(rejected.length ? { rejected } : {}),
+    });
   }
 
   private memberTombstone(value: unknown, auth: AuthorisedDevice, targetMember: string): PushRecord {

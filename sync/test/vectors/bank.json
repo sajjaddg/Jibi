@@ -1,0 +1,11 @@
+{
+  "name": "bank",
+  "kind": "bank",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "bank:SAMAN",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|bank|bank:SAMAN",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "sXb834ZlfpN26gKH",
+  "plaintext": "{\"kind\":\"bank\"}",
+  "body": "qKhNcIGb5yN9AW4B9PkHfc4t7fhkMueVv9Ikusc1iw=="
+}

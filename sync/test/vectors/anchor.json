@@ -1,0 +1,11 @@
+{
+  "name": "anchor",
+  "kind": "anchor",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "anchor:1",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|anchor|anchor:1",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "QdSXdQ1rBYvTepUz",
+  "plaintext": "{\"kind\":\"anchor\"}",
+  "body": "ks6vykJrTCLOkRxBwZ4pNdYaxaOKg8tDy+y+849r6HIt"
+}

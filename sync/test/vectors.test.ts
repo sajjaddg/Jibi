@@ -1,6 +1,6 @@
 import { SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
-import { KINDS, reservedKind } from '../src/kinds';
+import { isVaultOnly, KINDS, reservedKind, SHARED_KINDS, type Kind } from '../src/kinds';
 
 /**
  * The golden vectors of the seal (docs/SYNC_PROTOCOL.md § 10), opened and re-made with the
@@ -33,7 +33,12 @@ describe('the golden vectors', () => {
   it.each(vectors)('$name: carries exactly the agreed fields, its AAD and its id’s namespace', (v) => {
     expect(Object.keys(v).sort()).toEqual(FIELDS);
     expect(v.aad).toBe(v.name === 'legacy' ? null : `mt1|${v.scope}|${v.kind}|${v.id}`);
-    expect(reservedKind(v.id) ?? 'legacy').toBe(v.kind);
+    if (isVaultOnly(v.kind as Kind)) {
+      expect(v.id.startsWith(`${v.kind}:`)).toBe(true);
+      expect(v.scope.startsWith('vault:')).toBe(true);
+    } else {
+      expect(reservedKind(v.id) ?? 'legacy').toBe(v.kind);
+    }
     expect(bytes(v.key)).toHaveLength(32);
     expect(bytes(v.nonce)).toHaveLength(12);
   });
@@ -52,17 +57,21 @@ describe('the golden vectors', () => {
     }
   });
 
-  it('are records the Worker takes as they are', async () => {
+  it.each([
+    ['family', 'fe', (v: Vector) => (SHARED_KINDS as readonly string[]).includes(v.kind)],
+    ['personal', 'fc', () => true],
+  ] as const)('are records a %s household takes as they are', async (type, tag, fits) => {
     // The member ids in the vectors are the pusher's: `member`, `transaction` and `asset` are
     // written by their owner only.
-    const hid = 'fe'.repeat(16);
+    const hid = tag.repeat(16);
     const memberId = '018f0000000070008000000000000001';
+    const taken = vectors.filter(fits);
     const claim = await SELF.fetch(`https://sync.test/v1/claim?hid=${hid}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ scopes: [vectors[0].scope], memberId, deviceId: 'fd'.repeat(16) }),
+      body: JSON.stringify({ type, scopes: [...new Set(taken.map((v) => v.scope))], memberId, deviceId: 'fd'.repeat(16) }),
     });
     const { secret } = (await claim.json()) as { secret: string };
-    const records = vectors.map((v) => ({
+    const records = taken.map((v) => ({
       id: v.id, scope: v.scope, kind: v.kind, updatedAt: 1795000000000, device: 'vectors',
       ownerMemberId: memberId, deleted: v.name === 'tombstone', nonce: v.nonce, body: v.body,
     }));
@@ -70,7 +79,9 @@ describe('the golden vectors', () => {
       method: 'POST', headers: { authorization: `Bearer ${hid}.${secret}`, 'content-type': 'application/json' },
       body: JSON.stringify({ records }),
     });
-    expect(await pushed.json()).toMatchObject({ accepted: records.length });
+    const answer = await pushed.json();
+    expect(answer).toMatchObject({ accepted: records.length });
+    expect(answer).not.toHaveProperty('rejected');
     expect(pushed.status).toBe(200);
   });
 });

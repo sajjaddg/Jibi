@@ -1,0 +1,11 @@
+{
+  "name": "loan_person",
+  "kind": "loan_person",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "loan_person:018f0000-0000-7000-8000-0000000000dd",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|loan_person|loan_person:018f0000-0000-7000-8000-0000000000dd",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "mCitRuI5+m6eg7AE",
+  "plaintext": "{\"kind\":\"loan_person\"}",
+  "body": "hQ1rSOphWJ8H18+Ti2GHd574b9GUEDE0dMjCVANWYcDv7e5ZhmI="
+}

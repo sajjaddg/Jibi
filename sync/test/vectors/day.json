@@ -1,0 +1,11 @@
+{
+  "name": "day",
+  "kind": "day",
+  "scope": "vault:0123456789abcdef0123456789abcdef",
+  "id": "day:2026-11-26",
+  "aad": "mt1|vault:0123456789abcdef0123456789abcdef|day|day:2026-11-26",
+  "key": "H9G4g6eT2YhrCKppRsWnXXWuYEoaasQNDnzIcpcVgsU",
+  "nonce": "WtZEixgoWWYEvV6A",
+  "plaintext": "{\"kind\":\"day\"}",
+  "body": "h/8Yd/5Hq9/T09g+oUi7xFuL2ybuPUEXGryGpsmP"
+}
