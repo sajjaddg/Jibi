@@ -11,7 +11,11 @@
     // device that is behind is answered `410 resync_required`, which a client that does not know
     // `live=1` cannot get past: it stops syncing. So «off» until the Android and PWA builds that
     // handle the 410 are out and in use (#21); only the exact word «on» turns it on.
-    "COMPACTION": "off"
+    "COMPACTION": "off",
+    // The public half of billing's signing key (raw 32 bytes, base64url), comma separated while a
+    // key is being rotated. Public, so a var and not a secret. Empty: POST /v1/entitlement
+    // answers 503, and nothing else changes.
+    "ENTITLEMENT_PUBLIC_KEYS": ""
   },
 
   // Deliberately a second Worker rather than another route on muchtoman-rates. The rates
@@ -72,7 +76,7 @@
     "staging": {
       "name": "muchtoman-sync-staging",
       // Staging may be turned on first, to try a client's start-over against it.
-      "vars": { "RATES_ORIGIN": "https://rates.muchtoman.com", "COMPACTION": "off" },
+      "vars": { "RATES_ORIGIN": "https://rates.muchtoman.com", "COMPACTION": "off", "ENTITLEMENT_PUBLIC_KEYS": "" },
       "routes": [{ "pattern": "staging-sync.muchtoman.com", "custom_domain": true }],
       "workers_dev": false,
       "assets": {

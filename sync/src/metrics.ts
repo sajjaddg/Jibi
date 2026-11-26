@@ -13,9 +13,9 @@
 
 /** Every code the API answers with. test/metrics.test.ts fails when index.ts says one not here. */
 export const ERROR_CODES = [
-  'already_claimed', 'body_too_large', 'device_exists', 'forbidden_owner', 'forbidden_primary',
+  'already_claimed', 'body_too_large', 'device_exists', 'expired_entitlement', 'forbidden_owner', 'forbidden_primary',
   'forbidden_role', 'forbidden_scope', 'forbidden_type', 'household_full', 'identity_exists', 'identity_locked', 'internal',
-  'invalid_code', 'invalid_device', 'invalid_expiry', 'invalid_hid', 'invalid_id', 'invalid_identity', 'invalid_kind',
+  'invalid_code', 'invalid_device', 'invalid_entitlement', 'invalid_expiry', 'invalid_hid', 'invalid_id', 'invalid_identity', 'invalid_kind',
   'invalid_limit', 'invalid_member', 'invalid_member_tombstone', 'invalid_nonce', 'invalid_record',
   'invalid_recovery', 'invalid_request', 'invalid_role', 'invalid_scope', 'invalid_secret', 'invalid_since', 'invalid_type',
   'invalid_updated_at', 'kind_not_allowed', 'last_admin', 'last_device', 'member_exists', 'not_recoverable', 'quota_exceeded', 'read_only',
@@ -60,6 +60,7 @@ const V1_ROUTES: Record<string, string> = {
   'GET /v1/roles': 'roles',
   'GET /v1/invites': 'invites',
   'POST /v1/invites/cancel': 'invites_cancel',
+  'POST /v1/entitlement': 'entitlement',
 };
 
 export function routeOf(method: string, path: string): string | null {

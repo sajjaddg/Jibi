@@ -174,6 +174,7 @@ replacing the placeholder in its golden vector.
 | `POST /v1/recover` | `{hid, recovery, deviceId?, revoke?}` | `{secret, scopes, memberId, deviceId}` — no token |
 | `POST /v1/recovery/rotate` | `{recovery}` | `{rotated: true}`; the old secret stops at once |
 | `POST /v1/invite` | `{scopes?, expiresIn?}` | `{code, expiresIn, places}` — a one-time code for ten minutes (default) or a day (`86400000`); at most 16 outstanding; `places` is how many more may join |
+| `POST /v1/entitlement` | `{entitlement}` | `{plan, exp}` — § Entitlement |
 | `GET /v1/invites` | — | `{invites: [{id, expiresAt}]}`; admins. `id` cannot redeem |
 | `POST /v1/invites/cancel` | `{id}` | `{cancelled: true}`; admins. The code then answers `invalid_code` |
 | `POST /v1/pair` | `{code, memberId?, deviceId?}` | `{secret, scopes, memberId, deviceId}` |
@@ -340,6 +341,16 @@ signature = Ed25519 over the UTF-8 of "mt1.entitlement." + the first part
   Each is `{name, keys, token, now, result: "ok"|"expired"|"invalid", claims}`. The Kotlin and
   PWA verifiers are still to be written (#45).
 
+### Giving it to a household
+
+Any member sends it to `POST /v1/entitlement`; the household keeps whichever runs longest
+(`meta.plan`: the plan, `exp`, and the slot hashed under `mt1.do-slot|`, so it matches nothing in
+billing's database, which hashes the same nonce under `mt1.billing-slot|`). `hello` then reports
+`plan: "pro"`, and with plan quotas switched on the household has Pro's limits at once.
+
+The server cannot tell that one entitlement was shown to two households; billing, which signs a
+license for at most two slots, is what bounds that.
+
 ## 8. Errors
 
 `{"code": "…"}` with the status. A client matches the code, never the text.
@@ -363,6 +374,8 @@ signature = Ed25519 over the UTF-8 of "mt1.entitlement." + the first part
 | `invalid_limit` | 400 | |
 | `invalid_secret` | 400 | a rotation secret that is not 64 hex |
 | `invalid_expiry` | 400 | `expiresIn` that is neither of the two |
+| `invalid_entitlement` | 400 | not a genuine entitlement |
+| `expired_entitlement` | 409 | genuine, and past its grace |
 | `invalid_recovery` | 400 | a recovery secret that is not 64 hex |
 | `invalid_member_tombstone` | 400 | `remove`/`leave` record does not bury that member |
 | `invalid_hid` | 400 | |
@@ -396,7 +409,7 @@ signature = Ed25519 over the UTF-8 of "mt1.entitlement." + the first part
 | `unsupported_media_type` | 415 | a POST not labelled JSON |
 | `rate_limited` | 429 | |
 | `internal` | 500 | |
-| `unavailable` | 502 | the rates Worker behind a proxied path did not answer |
+| `unavailable` | 502, 503 | a proxied rates call did not answer; no entitlement key configured |
 <!-- /errors -->
 
 Only `/v1/*` answers are counted (endpoint, status, client version, code — `sync/src/metrics.ts`).
