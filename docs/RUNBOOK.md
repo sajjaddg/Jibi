@@ -47,6 +47,9 @@ resource the owner creates. Until then, run the query after every deploy and onc
 | `rate_limited` | a step up | a flood, or a client retrying in a loop |
 | billing verify errors | any sustained | a store or gateway is unreachable from Cloudflare |
 
+For billing, run the same query against `muchtoman_billing`. A `200` push that rejected records
+(`quota_exceeded`, `read_only`) is not counted by code: only refused requests are.
+
 The rates Worker's own trouble is the `rates build degraded` log line, and a failed cron run is a
 missing day in `/history` (`history point not recorded`).
 

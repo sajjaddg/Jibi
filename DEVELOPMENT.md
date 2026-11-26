@@ -307,7 +307,9 @@ pnpm run dev       # local D1; first: pnpm exec wrangler d1 migrations apply muc
 
 `pay.muchtoman.com`, custom domain only (`workers_dev` is off). It keeps licenses in D1
 (`migrations/`) and nothing about people: no household id, address, phone number, e-mail or name.
-Today it answers `GET /v1/health` and nothing else; buying and redeeming are #46 and #47.
+Today it answers `GET /v1/health` and nothing else; buying and redeeming are #46 and #47. It
+counts its answers into `muchtoman_billing` exactly as the sync Worker does into `muchtoman_sync`
+(§ What the sync Worker counts): endpoint, status, client version, error code.
 
 **Before the first deploy** (the owner's, none of it done): create the database
 (`pnpm exec wrangler d1 create muchtoman-billing`), put its id in `wrangler.jsonc` in place of the
