@@ -244,7 +244,7 @@ Any device of a vault may destroy it. In a family every member has a **role**:
 |---|---|---|---|
 | pull, `hello`, `devices`, `roles`, `rotate`, `leave`, revoke own devices | yes | yes | yes |
 | push | yes | yes | no, except deleting their own `transaction` and `asset` rows |
-| `invite`, `remove`, revoke someone else | yes | yes, until `ROLES_RESTRICT_MEMBERS`; never against an admin | no |
+| `invite`, `remove`, revoke someone else | yes | yes, until `ROLES_RESTRICT_MEMBERS`; never against someone made an admin | no |
 | `role` | yes | no | no |
 | `destroy`, once the only member | yes | no | no |
 

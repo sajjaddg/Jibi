@@ -97,6 +97,15 @@ describe('as shipped', () => {
     expect((await call(f.second, '/v1/remove', { member: ids.third, record: tombstone(ids.third) })).status).toBe(200);
   });
 
+  it('lets a member remove anyone nobody made an admin, even with the founder gone', async () => {
+    const f = await family();
+    expect((await call(f.founder, '/v1/leave', { record: tombstone(ids.founder) })).status).toBe(200);
+    // `second` now stands in as admin, having been here longest. A released client still offers to
+    // remove them, and the server did that before there were roles.
+    expect((await call(f.third, '/v1/roles')).body.members).toContainEqual({ memberId: ids.second, role: 'admin' });
+    expect((await call(f.third, '/v1/remove', { member: ids.second, record: tombstone(ids.second) })).status).toBe(200);
+  });
+
   it('still keeps a member away from an admin, and from roles', async () => {
     const f = await family();
     await setRole(f.founder, ids.third, 'admin');
