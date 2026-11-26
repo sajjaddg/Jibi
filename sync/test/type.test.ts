@@ -77,6 +77,16 @@ describe('claiming', () => {
   });
 });
 
+describe('hello', () => {
+  it('tells a device whether its household is a vault or a family', async () => {
+    for (const [asked, told] of [[undefined, 'family'], ['family', 'family'], ['personal', 'personal']] as const) {
+      const device = await claim(asked);
+      const res = await SELF.fetch('https://sync.test/v1/hello', { headers: { authorization: `Bearer ${device.token}` } });
+      expect(((await res.json()) as { type: string }).type).toBe(told);
+    }
+  });
+});
+
 describe('a vault', () => {
   it('takes her next device as her own, whatever member it says it is', async () => {
     const vault = await claim('personal');

@@ -747,9 +747,8 @@ export class Household extends DurableObject<Env> {
     const rows = [...this.sql.exec<{ member_id: string; token_hash: string }>('SELECT member_id, token_hash FROM device')];
     return jsonResponse({
       ...helloAnonymous(),
-      // Every household is a family until B1.2 gives it a type, and nobody has a plan until
-      // B1.6 does, so everyone is on the free one.
-      type: 'family',
+      type: this.type(),
+      // Nobody has a plan until B1.6 gives them one, so everyone is on the free one.
       plan: 'free',
       // The ceilings in force today are the hard caps; plan quotas replace them in B1.6. There
       // is no cap on members separate from the one on devices.
