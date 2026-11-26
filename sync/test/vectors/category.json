@@ -1,0 +1,11 @@
+{
+  "name": "category",
+  "kind": "category",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "category:a643a0a3d81d35dfae4bbb4001aca0a03f7430b10e302fec05a6df4814dbf37f",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|category|category:a643a0a3d81d35dfae4bbb4001aca0a03f7430b10e302fec05a6df4814dbf37f",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "MN8m04mcktFKLcyD",
+  "plaintext": "{\"kind\":\"category\",\"target\":\"txn:018f0000000070008000000000000001:733a643937306336323134346663613562623962346338626564653736623639373264343530383566393662663666646663613932656335373961396262353261373a30\",\"categoryId\":\"cat_food\",\"categoryName\":\"رستوران و کافه\",\"categoryKind\":\"expense\",\"categoryGlyph\":\"\",\"editedByMemberId\":\"018f0000000070008000000000000002\",\"categoryEditedAt\":0}",
+  "body": "izYjAM4NSVAb1OthCMDMp7pOoqG+wy+RIL5iSgSjNf13WQgzelSLFmCjXuH5sang+vo0Q4eE+Rm5arocV4oi4HCaNOwkbPq3Q/tfBBQA7rO/crylC6CJVywBLmYRjgAluTsQQxPfP+DYNQjOkERoyqSaO+ccedF/FkBzcUV6xiP9HIhqQK0ntDg4Vl5qb8spg7+l6OReA/OQgBtrJWBdoYs7PprFfdEOQra+rEG3EuCGSs8p4aWl7xF7IobECzVrdQDrdk6iyucFSoxUcLmResx97Nkf8Y3Vi8yCDAM36BJdnswugH77tTabWjM9Nw80Z2FVc+i/bhveiJfhiY5bfxUo6wvK+i0R9ERESjGFnP2PIdHAHuHl7RN1thajDFhRz0jzjJJopFDq3WuNIEs4SWihwmRGuV1N++D5Fx9QiLKhLBOU2ZMCikSn4rghggIs/cC7xEWKE7BcGm/YoyUcZEQP5eeewd07x5kKn1/Fqcix60Zm0mpmKdRbXhbdLbQxveW90xtuUtVHUHy+5efKEkKahrUcpZk="
+}

@@ -1,0 +1,11 @@
+{
+  "name": "transaction",
+  "kind": "transaction",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "txn:018f0000000070008000000000000001:733a643937306336323134346663613562623962346338626564653736623639373264343530383566393662663666646663613932656335373961396262353261373a30",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|transaction|txn:018f0000000070008000000000000001:733a643937306336323134346663613562623962346338626564653736623639373264343530383566393662663666646663613932656335373961396262353261373a30",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "ryD5fFZsJvnKcTMk",
+  "plaintext": "{\"kind\":\"transaction\",\"ownerMemberId\":\"018f0000000070008000000000000001\",\"sourceKind\":\"sms\",\"at\":1795000000000,\"amountRial\":12500000,\"direction\":\"out\",\"bank\":\"SAMAN\",\"categoryId\":\"cat_food\",\"categoryName\":\"رستوران و کافه\",\"categoryKind\":\"expense\",\"transfer\":false,\"categoryGlyph\":\"\",\"categoryEditorId\":\"018f0000000070008000000000000001\",\"categoryUpdatedAt\":0,\"categoryEditedAt\":0,\"merchant\":\"کافه | «تست»\"}",
+  "body": "iy1YQh+vkggW0D7uh8IzuGyjhk1CvtSp6W6crTe+EqmH3ErPAb33c2N/l4mCf9cDO++inqvPq94BJRumCxNem/o7VO1TwBzs8y5hNvbI3WmvLQeyI0WPjOJjCeMG8k3gjscr7BXz2zHwzLkudzRaUfO2LDtoYfJKt9/Z4sG99hATdhbfd8TozAaZvJlLd5wnVpHrMu+a9Hz25m9y/bi7mAm+w0gbaEDpGxvlo91G4wvptjudlYB/ISLuPcKYKjg8x0DkT9dxzeywEZlvVq+MqEqyKjoE/SSQ5kPVB+CSapfzSSdHEd5BUxZN4anBKJ52djNSpNgJo5KxvIS0SIl9S/Nsh/f3mDiKbLMRZ5o0agcW9vA5r0qYP4QoMlEn89lIfXI7SShtgTniCd+P8FhJ2X9zCOgGtBBwBTnvGw5hsRD6LZqDJoeNyMwco24SSyK0egEsaavgpJt7bEidsN+VnBUvXxqbq2QOyucUMeu+UxRr0vQuDaw86NwWE+WZlLBmFsxGfEYxltaySRLVLu7QImnxwApgXaCScvb5Sgjwz6b7vMxHzI6+GOwNUjBOy8OEzml51AOLVkytCdU="
+}

@@ -1,0 +1,11 @@
+{
+  "name": "exclusion",
+  "kind": "exclusion",
+  "scope": "family:0123456789abcdef0123456789abcdef",
+  "id": "exclusion:report",
+  "aad": "mt1|family:0123456789abcdef0123456789abcdef|exclusion|exclusion:report",
+  "key": "TJ6J5RzJeEkdj-k12MoHYycpfTeRtCKtprazcZTxW40",
+  "nonce": "c/MS4pHE8DIeZYHg",
+  "plaintext": "{\"kind\":\"exclusion\",\"categoryIds\":[\"cat_loan\"],\"editedByMemberId\":\"018f0000000070008000000000000001\"}",
+  "body": "xJgg2KtUbU79OgsnRTrmOidDxjTpZiGa/oE2Mnh1Zf0m4+bN/K4++rPkB6kEqB6QQfpdcv6lxYcZeiDOiioR3KQ6l2Y1HZVtLjQmAppR33DTu3HwlHBpGdoihCihX6zIrn/qU9An5XY2/lgQ1QTwFhhn9BJS"
+}
