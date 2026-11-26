@@ -839,6 +839,9 @@ ledger back over the ordinary pull.
 
 ### Deploying
 
+When something is broken rather than being shipped — what to watch, rollback, point-in-time
+restore, key rotation — read [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
 ```bash
 cd sync && pnpm run deploy        # builds ../pwa first; refuses uncommitted changes in sync/ or pwa/
 ```
